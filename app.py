@@ -129,6 +129,8 @@ if __name__ == '__main__':
     init_db()
     
     # Run the Flask app on localhost
+    # Note: debug=True is enabled for local development only
+    # For production, use a proper WSGI server like gunicorn
     print("Starting Flask app on http://127.0.0.1:5000")
     print("Press CTRL+C to quit")
     app.run(debug=True, host='0.0.0.0', port=5000)
