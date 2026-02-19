@@ -3,16 +3,17 @@ Flask Web Application for Family Christmas Wish List
 
 This application allows family members to:
 - Add wishes to a shared list
-- Reserve wishes (so others know it's being handled)
 - Delete wishes
 - View all wishes in a simple table
-- Admin can manage family members pool
+- Admin can manage family members pool and Secret Santa assignments
+- Secret Santa draw assigns each family member a recipient (circular)
 """
 
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 from functools import wraps
 import sqlite3
 import os
+import random
 
 app = Flask(__name__)
 # NOTE: In production, use a secure random key from environment variable:
@@ -62,8 +63,16 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             person_name TEXT NOT NULL,
             wish_text TEXT NOT NULL,
-            product_link TEXT,
-            reserved INTEGER DEFAULT 0
+            product_link TEXT
+        )
+    ''')
+
+    # Create secret_santa table
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS secret_santa (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            giver_name TEXT NOT NULL UNIQUE,
+            receiver_name TEXT NOT NULL
         )
     ''')
     conn.commit()
@@ -100,7 +109,7 @@ def index():
     for member in family_members:
         person_name = member['name']
         wishes = conn.execute(
-            'SELECT * FROM wishes WHERE person_name = ? ORDER BY reserved ASC, id DESC',
+            'SELECT * FROM wishes WHERE person_name = ? ORDER BY id DESC',
             (person_name,)
         ).fetchall()
         wishes_by_person[person_name] = wishes
@@ -141,27 +150,6 @@ def add_wish():
         
         conn.close()
     
-    return redirect(url_for('index'))
-
-
-@app.route('/reserve/<int:wish_id>', methods=['POST'])
-def reserve_wish(wish_id):
-    """
-    Toggle the reserved status of a wish.
-    If reserved (1), changes to unreserved (0), and vice versa.
-    """
-    conn = get_db_connection()
-    
-    # Get current reserved status
-    wish = conn.execute('SELECT reserved FROM wishes WHERE id = ?', (wish_id,)).fetchone()
-    
-    if wish:
-        # Toggle reserved status (0 -> 1 or 1 -> 0)
-        new_status = 0 if wish['reserved'] == 1 else 1
-        conn.execute('UPDATE wishes SET reserved = ? WHERE id = ?', (new_status, wish_id))
-        conn.commit()
-    
-    conn.close()
     return redirect(url_for('index'))
 
 
@@ -209,15 +197,22 @@ def admin_logout():
 @login_required
 def admin_panel():
     """
-    Admin panel to manage family members pool.
+    Admin panel to manage family members pool, view all wishes, and manage Secret Santa.
     """
     conn = get_db_connection()
     family_members = conn.execute(
         'SELECT * FROM family_members ORDER BY name ASC'
     ).fetchall()
+    all_wishes = conn.execute(
+        'SELECT * FROM wishes ORDER BY person_name ASC, id DESC'
+    ).fetchall()
+    santa_assignments = conn.execute(
+        'SELECT giver_name, receiver_name FROM secret_santa ORDER BY giver_name ASC'
+    ).fetchall()
     conn.close()
-    
-    return render_template('admin_panel.html', family_members=family_members)
+
+    return render_template('admin_panel.html', family_members=family_members,
+                           all_wishes=all_wishes, santa_assignments=santa_assignments)
 
 
 @app.route('/admin/add_member', methods=['POST'])
@@ -315,6 +310,109 @@ def edit_family_member(member_id):
         conn.close()
     
     return redirect(url_for('admin_panel'))
+
+
+@app.route('/admin/generate_secret_santa', methods=['POST'])
+@login_required
+def generate_secret_santa():
+    """
+    Generate Secret Santa assignments for all family members.
+    Creates a circular assignment: members are randomly shuffled and each
+    person is assigned the next person in the shuffled list.
+    """
+    conn = get_db_connection()
+    members = conn.execute(
+        'SELECT name FROM family_members ORDER BY name ASC'
+    ).fetchall()
+    names = [m['name'] for m in members]
+
+    if len(names) < 2:
+        flash('Need at least 2 family members to generate Secret Santa assignments.', 'error')
+        conn.close()
+        return redirect(url_for('admin_panel'))
+
+    random.shuffle(names)
+
+    # Clear existing assignments
+    conn.execute('DELETE FROM secret_santa')
+
+    # Create circular assignments: names[i] -> names[(i+1) % n]
+    for i, name in enumerate(names):
+        receiver = names[(i + 1) % len(names)]
+        conn.execute(
+            'INSERT INTO secret_santa (giver_name, receiver_name) VALUES (?, ?)',
+            (name, receiver)
+        )
+
+    conn.commit()
+    conn.close()
+
+    flash('Secret Santa assignments generated successfully!', 'success')
+    return redirect(url_for('admin_panel'))
+
+
+@app.route('/select_member', methods=['GET', 'POST'])
+def select_member():
+    """
+    Page where users identify themselves by selecting their family member name(s).
+    Stores selection in session and redirects to the filtered wish view.
+    """
+    conn = get_db_connection()
+    family_members = conn.execute(
+        'SELECT name FROM family_members ORDER BY name ASC'
+    ).fetchall()
+    conn.close()
+
+    if request.method == 'POST':
+        selected = request.form.getlist('members')
+        if selected:
+            session['selected_members'] = selected
+            return redirect(url_for('my_wishes'))
+        return render_template('select_member.html', family_members=family_members,
+                               error='Please select at least one family member.')
+
+    return render_template('select_member.html', family_members=family_members)
+
+
+@app.route('/my_wishes')
+def my_wishes():
+    """
+    Filtered wish view for selected family members.
+    Shows the wishes of the selected members and their Secret Santa targets.
+    """
+    selected_members = session.get('selected_members', [])
+
+    if not selected_members:
+        return redirect(url_for('select_member'))
+
+    conn = get_db_connection()
+
+    # Get Secret Santa assignments for the selected members
+    assignments = {}
+    for member in selected_members:
+        row = conn.execute(
+            'SELECT receiver_name FROM secret_santa WHERE giver_name = ?',
+            (member,)
+        ).fetchone()
+        if row:
+            assignments[member] = row['receiver_name']
+
+    # Collect all visible people (self + their targets)
+    visible_people = set(selected_members) | set(assignments.values())
+
+    # Get wishes for all visible people
+    wishes_by_person = {}
+    for person in sorted(visible_people):
+        wishes = conn.execute(
+            'SELECT * FROM wishes WHERE person_name = ? ORDER BY id DESC',
+            (person,)
+        ).fetchall()
+        wishes_by_person[person] = wishes
+
+    conn.close()
+
+    return render_template('my_wishes.html', wishes_by_person=wishes_by_person,
+                           selected_members=selected_members, assignments=assignments)
 
 
 if __name__ == '__main__':

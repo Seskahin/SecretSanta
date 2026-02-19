@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 
-{% block title %}Admin Panel - Family Members{% endblock %}
+{% block title %}Admin - Family Members{% endblock %}
 
 {% block content %}
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-        <h2>Admin Panel - Manage Family Members</h2>
+        <h2>Admin - Manage Family Members</h2>
         <a href="{{ url_for('admin_logout') }}" style="padding: 8px 16px; background-color: #6c757d; color: white; border-radius: 4px; text-decoration: none;">Logout</a>
     </div>
     
@@ -63,5 +63,63 @@
     <p style="text-align: center; color: #666; margin: 40px 0;">
         No family members yet. Add the first one above! 👨‍👩‍👧‍👦
     </p>
+    {% endif %}
+
+    <!-- Secret Santa Section -->
+    <h3 style="margin-top: 40px;">🎅 Secret Santa</h3>
+    <form method="POST" action="{{ url_for('generate_secret_santa') }}">
+        <button type="submit" class="btn-primary" onclick="return confirm('This will overwrite existing assignments. Continue?');">Generate New Secret Santa Draw</button>
+    </form>
+
+    {% if santa_assignments %}
+    <table style="margin-top: 20px;">
+        <thead>
+            <tr>
+                <th>Giver</th>
+                <th>→ Buys a gift for</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in santa_assignments %}
+            <tr>
+                <td>{{ row.giver_name }}</td>
+                <td>{{ row.receiver_name }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: #666; font-style: italic; margin: 15px 0;">No Secret Santa assignments yet. Click the button above to generate them.</p>
+    {% endif %}
+
+    <!-- All Wishes Table -->
+    <h3 style="margin-top: 40px;">📋 All Wishes</h3>
+    {% if all_wishes %}
+    <table>
+        <thead>
+            <tr>
+                <th>Person</th>
+                <th>Wish</th>
+                <th>Product Link</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for wish in all_wishes %}
+            <tr>
+                <td>{{ wish.person_name }}</td>
+                <td style="white-space: pre-wrap;">{{ wish.wish_text }}</td>
+                <td>
+                    {% if wish.product_link %}
+                        <a href="{{ wish.product_link }}" target="_blank">View Product</a>
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: #666; font-style: italic; margin: 15px 0;">No wishes added yet.</p>
     {% endif %}
 {% endblock %}

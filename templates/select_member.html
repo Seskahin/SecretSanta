@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}Who Are You? - Family Christmas Wish List{% endblock %}
+
+{% block content %}
+    <h2 style="text-align: center;">Who Are You? 🎅</h2>
+    <p style="text-align: center; color: #666;">Select which family member(s) you are. You can select more than one.</p>
+
+    {% if error %}
+    <div style="background-color: #f8d7da; color: #721c24; padding: 10px; border-radius: 5px; margin-bottom: 15px; text-align: center;">
+        {{ error }}
+    </div>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('select_member') }}" style="max-width: 400px; margin: 0 auto;">
+        {% if family_members %}
+            {% for member in family_members %}
+            <label style="display: flex; align-items: center; gap: 10px; margin: 12px 0; cursor: pointer; font-size: 16px;">
+                <input type="checkbox" name="members" value="{{ member.name }}" style="width: auto; margin: 0;">
+                {{ member.name }}
+            </label>
+            {% endfor %}
+            <button type="submit" class="btn-primary" style="margin-top: 20px; width: 100%; padding: 12px;">See My Wishes 🎁</button>
+        {% else %}
+            <p style="text-align: center; color: #666;">No family members in the pool yet. Please ask the admin to add family members first!</p>
+        {% endif %}
+    </form>
+
+    <div style="text-align: center; margin-top: 20px;">
+        <a href="{{ url_for('index') }}">← Back to Home</a>
+    </div>
+{% endblock %}
