@@ -44,6 +44,20 @@
             to { transform: translateY(110vh) rotate(360deg); opacity: 0; }
         }
 
+        /* Santa background decoration */
+        .santa-bg {
+            position: fixed;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 9em;
+            opacity: 0.12;
+            z-index: 0;
+            pointer-events: none;
+            user-select: none;
+            line-height: 1;
+        }
+
         .site-header {
             position: relative;
             z-index: 1;
@@ -65,7 +79,71 @@
             right: 0;
             top: 50%;
             transform: translateY(-50%);
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
+
+        /* Language switcher */
+        .lang-switcher {
+            display: flex;
+            gap: 4px;
+        }
+        .lang-btn {
+            padding: 5px 9px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 4px;
+            background: rgba(255,255,255,0.1);
+            color: #f5c518;
+            font-size: 0.8em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.15s, border-color 0.15s;
+        }
+        .lang-btn:hover { background: rgba(255,255,255,0.25); border-color: #f5c518; }
+        .lang-btn.active { background: #f5c518; color: #0e3d1f; border-color: #f5c518; }
+
+        /* Language popup overlay */
+        .lang-popup-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.65);
+            z-index: 9999;
+            align-items: center;
+            justify-content: center;
+        }
+        .lang-popup-overlay.visible { display: flex; }
+        .lang-popup-box {
+            background: #fffdf7;
+            border-radius: 14px;
+            padding: 36px 40px;
+            text-align: center;
+            max-width: 380px;
+            width: 90%;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            border-top: 6px solid #c41e3a;
+        }
+        .lang-popup-box h3 {
+            color: #c41e3a;
+            font-family: 'Mountains of Christmas', cursive, serif;
+            font-size: 1.6em;
+            margin-top: 0;
+        }
+        .lang-popup-box p { color: #555; margin-bottom: 20px; }
+        .lang-popup-btns { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }
+        .lang-popup-btns button {
+            padding: 10px 22px;
+            font-size: 1em;
+            font-weight: bold;
+            border: 2px solid #c41e3a;
+            border-radius: 6px;
+            background: #fff;
+            color: #c41e3a;
+            cursor: pointer;
+            transition: background 0.15s, color 0.15s;
+        }
+        .lang-popup-btns button:hover { background: #c41e3a; color: #fff; }
 
         h1 {
             color: #c41e3a;
@@ -168,6 +246,12 @@
         }
         .btn-delete:hover { background-color: #c82333; }
 
+        .btn-danger {
+            background: linear-gradient(135deg, #dc3545 0%, #a71d2a 100%);
+            color: white;
+        }
+        .btn-danger:hover { background: linear-gradient(135deg, #e74c5e 0%, #c82333 100%); }
+
         .info {
             text-align: center;
             margin: 10px 0;
@@ -213,9 +297,68 @@
         /* Section headings */
         h2 { color: #c41e3a; }
         h3 { color: #2d6a2d; }
+
+        /* Wish progress bar */
+        .wish-progress {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: linear-gradient(135deg, #e8f5e9 0%, #f1f8e9 100%);
+            border: 1px solid #a5d6a7;
+            border-radius: 8px;
+            padding: 10px 16px;
+            margin-bottom: 16px;
+        }
+        .wish-progress-label { color: #2d6a2d; font-weight: bold; }
+        .wish-progress-count { font-size: 1.3em; font-weight: bold; color: #c41e3a; }
+        .wish-progress-bar-wrap {
+            flex: 1;
+            background: #c8e6c9;
+            border-radius: 99px;
+            height: 10px;
+            overflow: hidden;
+        }
+        .wish-progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #2d6a2d, #66bb6a);
+            border-radius: 99px;
+            transition: width 0.4s;
+        }
+
+        /* Countdown timer */
+        .countdown-box {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+            border: 1px solid #ffb74d;
+            border-radius: 8px;
+            padding: 8px 14px;
+            margin-bottom: 16px;
+            font-weight: bold;
+            color: #e65100;
+        }
+        .countdown-box.passed { background: linear-gradient(135deg, #fce4ec 0%, #f8bbd0 100%); border-color: #e91e63; color: #880e4f; }
+
+        /* Comment section */
+        .comments-section { margin-top: 40px; }
+        .comments-section h3 { border-bottom: 2px solid #2d6a2d; padding-bottom: 8px; }
+        .comment-item {
+            background: #fff;
+            border: 1px solid #e8d5b0;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 10px;
+        }
+        .comment-author { font-weight: bold; color: #c41e3a; margin-bottom: 4px; }
+        .comment-text { color: #333; white-space: pre-wrap; }
+        .comment-date { font-size: 0.8em; color: #999; margin-top: 4px; }
     </style>
 </head>
 <body>
+    <!-- Santa background decoration -->
+    <div class="santa-bg" aria-hidden="true">🎅</div>
+
     <!-- Snowflakes -->
     <div class="snowflakes" aria-hidden="true">
         <span class="snowflake" style="left:5%;animation-duration:8s;animation-delay:0s;font-size:1em;">❄</span>
@@ -230,18 +373,212 @@
         <span class="snowflake" style="left:95%;animation-duration:10s;animation-delay:1.2s;font-size:0.6em;">❄</span>
     </div>
 
+    <!-- Language preference popup (shown once for new users) -->
+    <div class="lang-popup-overlay" id="langPopup" role="dialog" aria-modal="true" aria-labelledby="langPopupTitle">
+        <div class="lang-popup-box">
+            <h3 id="langPopupTitle">🎄 Choose language / Sprache wählen / Выберите язык</h3>
+            <p>Please choose your preferred language for this site.</p>
+            <div class="lang-popup-btns">
+                <button onclick="setLang('en', true)">🇬🇧 English</button>
+                <button onclick="setLang('de', true)">🇩🇪 Deutsch</button>
+                <button onclick="setLang('ru', true)">🇷🇺 Русский</button>
+            </div>
+        </div>
+    </div>
+
     <div class="site-header">
-        <h1>🎄 Family Christmas Wish List 🎅</h1>
+        <h1 data-i18n="site_title">🎄 Family Christmas Wish List 🎅</h1>
         <div class="header-nav">
+            <div class="lang-switcher">
+                <button class="lang-btn" id="btn-en" onclick="setLang('en', true)">EN</button>
+                <button class="lang-btn" id="btn-de" onclick="setLang('de', true)">DE</button>
+                <button class="lang-btn" id="btn-ru" onclick="setLang('ru', true)">RU</button>
+            </div>
             {% if session.get('logged_in') %}
-                <a href="{{ url_for('admin_panel') }}" class="btn-admin">⚙️ Admin</a>
+                <a href="{{ url_for('admin_panel') }}" class="btn-admin" data-i18n="admin">⚙️ Admin</a>
             {% else %}
-                <a href="{{ url_for('admin_login') }}" class="btn-admin">⚙️ Admin</a>
+                <a href="{{ url_for('admin_login') }}" class="btn-admin" data-i18n="admin">⚙️ Admin</a>
             {% endif %}
         </div>
     </div>
     <div class="container">
         {% block content %}{% endblock %}
     </div>
+
+<script>
+// ── i18n translations ────────────────────────────────────────────────────────
+const TRANSLATIONS = {
+    en: {
+        site_title: "🎄 Family Christmas Wish List 🎅",
+        admin: "⚙️ Admin",
+        who_are_you: "Who Are You?",
+        who_are_you_sub: "Select your name(s) to see your personal wishlist.",
+        select_names: "🎁 Select your family member name(s):",
+        view_wishlist: "🎅 View My Wishlist",
+        no_members_msg: "No family members in the pool yet. Please ask the admin to add family members first! 👨‍👩‍👧‍👦",
+        my_wishlist: "🎁 My Wishlist",
+        viewing_as: "Viewing as:",
+        secret_santa_label: "Secret Santa:",
+        no_assignments: "No Secret Santa assignments yet. Ask the admin to run Secret Santa!",
+        wishlist_closed: "🔒 The wish list is now closed.",
+        deadline_was: "The deadline was",
+        no_new_wishes: "No new wishes can be added — the list is read-only.",
+        add_a_wish: "Add a Wish",
+        add_wish_note: "You can add a wish for yourself or on behalf of another family member. Wishes added for other members will not be visible to you (except your Secret Santa receiver's wishes shown below).",
+        for_label: "For:",
+        wish_required: "Wish (required):",
+        product_link_optional: "Product Link (optional):",
+        add_wish_btn: "Add Wish",
+        your_wishes: "Your Wishes",
+        you_are_buying_for: "You Are Buying For",
+        wish_col: "Wish",
+        product_link_col: "Product Link",
+        actions_col: "Actions",
+        delete_btn: "Delete",
+        view_product: "View Product",
+        no_wishes_prefix: "No wishes added yet for",
+        users_with_wishes: "Users with wishes:",
+        days_left: "days left until deadline",
+        deadline_passed: "Deadline has passed",
+        no_deadline: "No deadline set",
+        comments_title: "💬 Comments",
+        leave_comment: "Leave a Comment",
+        your_name_opt: "Your name (optional — leave blank for anonymous):",
+        comment_label: "Comment:",
+        submit_comment: "Post Comment",
+        no_comments: "No comments yet. Be the first to comment! 🎄",
+        anonymous: "Anonymous",
+        buys_for: "buys for",
+    },
+    de: {
+        site_title: "🎄 Familien-Wunschliste 🎅",
+        admin: "⚙️ Admin",
+        who_are_you: "Wer bist du?",
+        who_are_you_sub: "Wähle deinen Namen, um deine persönliche Wunschliste zu sehen.",
+        select_names: "🎁 Wähle deinen Namen:",
+        view_wishlist: "🎅 Meine Wunschliste anzeigen",
+        no_members_msg: "Noch keine Familienmitglieder. Bitte den Admin, Familienmitglieder hinzuzufügen! 👨‍👩‍👧‍👦",
+        my_wishlist: "🎁 Meine Wunschliste",
+        viewing_as: "Angemeldet als:",
+        secret_santa_label: "Wichteln:",
+        no_assignments: "Noch keine Wichtel-Zuteilung. Bitte den Admin!",
+        wishlist_closed: "🔒 Die Wunschliste ist jetzt geschlossen.",
+        deadline_was: "Der Stichtag war",
+        no_new_wishes: "Keine neuen Wünsche möglich — die Liste ist schreibgeschützt.",
+        add_a_wish: "Wunsch hinzufügen",
+        add_wish_note: "Du kannst einen Wunsch für dich oder im Namen eines anderen Familienmitglieds hinzufügen.",
+        for_label: "Für:",
+        wish_required: "Wunsch (erforderlich):",
+        product_link_optional: "Produktlink (optional):",
+        add_wish_btn: "Wunsch hinzufügen",
+        your_wishes: "Deine Wünsche",
+        you_are_buying_for: "Du kaufst für",
+        wish_col: "Wunsch",
+        product_link_col: "Produktlink",
+        actions_col: "Aktionen",
+        delete_btn: "Löschen",
+        view_product: "Produkt anzeigen",
+        no_wishes_prefix: "Noch keine Wünsche für",
+        users_with_wishes: "Nutzer mit Wünschen:",
+        days_left: "Tage bis zum Stichtag",
+        deadline_passed: "Stichtag ist vergangen",
+        no_deadline: "Kein Stichtag gesetzt",
+        comments_title: "💬 Kommentare",
+        leave_comment: "Kommentar hinterlassen",
+        your_name_opt: "Dein Name (optional — leer lassen für anonym):",
+        comment_label: "Kommentar:",
+        submit_comment: "Kommentar senden",
+        no_comments: "Noch keine Kommentare. Sei der Erste! 🎄",
+        anonymous: "Anonym",
+        buys_for: "kauft für",
+    },
+    ru: {
+        site_title: "🎄 Список желаний семьи 🎅",
+        admin: "⚙️ Админ",
+        who_are_you: "Кто ты?",
+        who_are_you_sub: "Выбери своё имя, чтобы увидеть список желаний.",
+        select_names: "🎁 Выбери своё имя:",
+        view_wishlist: "🎅 Мой список желаний",
+        no_members_msg: "Участников пока нет. Попросите администратора добавить их! 👨‍👩‍👧‍👦",
+        my_wishlist: "🎁 Мой список желаний",
+        viewing_as: "Просматриваете как:",
+        secret_santa_label: "Тайный Санта:",
+        no_assignments: "Нет назначений. Попросите администратора!",
+        wishlist_closed: "🔒 Список желаний закрыт.",
+        deadline_was: "Срок был",
+        no_new_wishes: "Новые желания нельзя добавлять — список только для чтения.",
+        add_a_wish: "Добавить желание",
+        add_wish_note: "Вы можете добавить желание для себя или от имени другого участника.",
+        for_label: "Для:",
+        wish_required: "Желание (обязательно):",
+        product_link_optional: "Ссылка на товар (необязательно):",
+        add_wish_btn: "Добавить желание",
+        your_wishes: "Ваши желания",
+        you_are_buying_for: "Вы покупаете для",
+        wish_col: "Желание",
+        product_link_col: "Ссылка",
+        actions_col: "Действия",
+        delete_btn: "Удалить",
+        view_product: "Посмотреть товар",
+        no_wishes_prefix: "Желаний пока нет для",
+        users_with_wishes: "Участников с желаниями:",
+        days_left: "дней до срока",
+        deadline_passed: "Срок прошёл",
+        no_deadline: "Срок не задан",
+        comments_title: "💬 Комментарии",
+        leave_comment: "Оставить комментарий",
+        your_name_opt: "Ваше имя (необязательно — оставьте пустым для анонима):",
+        comment_label: "Комментарий:",
+        submit_comment: "Отправить",
+        no_comments: "Комментариев пока нет. Будьте первым! 🎄",
+        anonymous: "Аноним",
+        buys_for: "покупает для",
+    }
+};
+
+// ── Cookie helpers ────────────────────────────────────────────────────────────
+function getCookie(name) {
+    const v = document.cookie.split('; ').find(r => r.startsWith(name + '='));
+    return v ? decodeURIComponent(v.split('=')[1]) : null;
+}
+function setCookie(name, value, days) {
+    const d = new Date();
+    d.setTime(d.getTime() + days * 86400000);
+    document.cookie = name + '=' + encodeURIComponent(value) + ';expires=' + d.toUTCString() + ';path=/';
+}
+
+// ── Apply translations ────────────────────────────────────────────────────────
+function applyTranslations(lang) {
+    const t = TRANSLATIONS[lang] || TRANSLATIONS['en'];
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (t[key] !== undefined) el.textContent = t[key];
+    });
+    // Update active button state
+    ['en', 'de', 'ru'].forEach(l => {
+        const btn = document.getElementById('btn-' + l);
+        if (btn) btn.classList.toggle('active', l === lang);
+    });
+}
+
+// ── Set language ──────────────────────────────────────────────────────────────
+function setLang(lang, reload) {
+    setCookie('lang', lang, 365);
+    document.getElementById('langPopup').classList.remove('visible');
+    applyTranslations(lang);
+    if (reload) location.reload();
+}
+
+// ── On page load ──────────────────────────────────────────────────────────────
+(function() {
+    const lang = getCookie('lang');
+    if (!lang) {
+        // Show language selection popup for new users
+        document.getElementById('langPopup').classList.add('visible');
+    } else {
+        applyTranslations(lang);
+    }
+})();
+</script>
 </body>
 </html>

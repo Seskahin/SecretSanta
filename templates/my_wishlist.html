@@ -4,7 +4,7 @@
 
 {% block content %}
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-        <h2>🎁 My Wishlist</h2>
+        <h2 data-i18n="my_wishlist">🎁 My Wishlist</h2>
     </div>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -17,40 +17,76 @@
         {% endif %}
     {% endwith %}
 
+    <!-- x/max progress counter -->
+    <div class="wish-progress">
+        <span class="wish-progress-label" data-i18n="users_with_wishes">Users with wishes:</span>
+        <span class="wish-progress-count">{{ members_with_wishes }}/{{ total_members }}</span>
+        <div class="wish-progress-bar-wrap">
+            <div class="wish-progress-bar-fill" style="width: {% if total_members > 0 %}{{ (members_with_wishes / total_members * 100)|int }}{% else %}0{% endif %}%;"></div>
+        </div>
+    </div>
+
+    <!-- Countdown timer -->
+    {% if wish_deadline %}
+    <div class="countdown-box" id="countdownBox">
+        <span>🕐</span>
+        <span id="countdownText">...</span>
+    </div>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const deadline = new Date('{{ wish_deadline }}T23:59:59');
+        const now = new Date();
+        const diffMs = deadline - now;
+        const box = document.getElementById('countdownBox');
+        const txt = document.getElementById('countdownText');
+        const langCookie = document.cookie.split('; ').find(r => r.startsWith('lang='));
+        const lang = langCookie ? langCookie.split('=')[1] : 'en';
+        const T = (typeof TRANSLATIONS !== 'undefined' && TRANSLATIONS[lang]) ? TRANSLATIONS[lang] : {days_left: 'days left until deadline', deadline_passed: 'Deadline has passed'};
+        if (diffMs <= 0) {
+            box.classList.add('passed');
+            txt.textContent = T.deadline_passed;
+        } else {
+            const days = Math.ceil(diffMs / 86400000);
+            txt.textContent = days + ' ' + T.days_left;
+        }
+    });
+    </script>
+    {% endif %}
+
     <p style="color: #666;">
-        Viewing as: <strong>{{ selected_members | join(', ') }}</strong>
+        <span data-i18n="viewing_as">Viewing as:</span> <strong>{{ selected_members | join(', ') }}</strong>
     </p>
 
     {% if assigned_to %}
     <p style="color: #666;">
-        Secret Santa:<br>
+        <span data-i18n="secret_santa_label">Secret Santa:</span><br>
         {% for giver, receiver in assigned_to.items() %}
-            <strong>{{ giver }}</strong> → buys for <strong>{{ receiver }}</strong><br>
+            <strong>{{ giver }}</strong> → <span data-i18n="buys_for">buys for</span> <strong>{{ receiver }}</strong><br>
         {% endfor %}
     </p>
     {% else %}
-    <p style="color: #666; font-style: italic;">No Secret Santa assignments yet. Ask the admin to run Secret Santa!</p>
+    <p style="color: #666; font-style: italic;" data-i18n="no_assignments">No Secret Santa assignments yet. Ask the admin to run Secret Santa!</p>
     {% endif %}
 
     {% if wishes_locked %}
     <!-- Deadline passed — read-only notice -->
     <div style="background-color: #fff3cd; color: #856404; padding: 12px 16px; border-radius: 5px; margin: 20px 0; border: 1px solid #ffc107;">
-        🔒 <strong>The wish list is now closed.</strong>
+        <span data-i18n="wishlist_closed">🔒 <strong>The wish list is now closed.</strong></span>
         {% if wish_deadline %}
-            The deadline was <strong>{{ wish_deadline }}</strong>.
+            <span data-i18n="deadline_was">The deadline was</span> <strong>{{ wish_deadline }}</strong>.
         {% endif %}
-        No new wishes can be added — the list is read-only.
+        <span data-i18n="no_new_wishes">No new wishes can be added — the list is read-only.</span>
     </div>
     {% else %}
     <!-- Add a wish -->
-    <h3 style="margin-top: 30px;">Add a Wish</h3>
-    <p style="color: #666; font-size: 0.9em; margin-top: -5px;">
+    <h3 style="margin-top: 30px;" data-i18n="add_a_wish">Add a Wish</h3>
+    <p style="color: #666; font-size: 0.9em; margin-top: -5px;" data-i18n="add_wish_note">
         You can add a wish for yourself or on behalf of another family member.
         Wishes added for other members will not be visible to you (except your Secret Santa receiver's wishes shown below).
     </p>
     <form method="POST" action="{{ url_for('add_wish') }}">
         <input type="hidden" name="source" value="my_wishlist">
-        <label for="person_name">For:</label>
+        <label for="person_name" data-i18n="for_label">For:</label>
         <select id="person_name" name="person_name" required style="width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ddd; border-radius: 4px;">
             <option value="">Select a name</option>
             {% for member in all_family_members %}
@@ -61,18 +97,18 @@
             {% endfor %}
         </select>
 
-        <label for="wish_text">Wish (required):</label>
+        <label for="wish_text" data-i18n="wish_required">Wish (required):</label>
         <textarea id="wish_text" name="wish_text" rows="3" required></textarea>
 
-        <label for="product_link">Product Link (optional):</label>
+        <label for="product_link" data-i18n="product_link_optional">Product Link (optional):</label>
         <input type="text" id="product_link" name="product_link" placeholder="https://...">
 
-        <button type="submit" class="btn-primary">Add Wish</button>
+        <button type="submit" class="btn-primary" data-i18n="add_wish_btn">Add Wish</button>
     </form>
     {% endif %}
 
     <!-- Own wishes -->
-    <h3 style="margin-top: 30px; color: #c41e3a; border-bottom: 2px solid #c41e3a; padding-bottom: 8px;">Your Wishes</h3>
+    <h3 style="margin-top: 30px; color: #c41e3a; border-bottom: 2px solid #c41e3a; padding-bottom: 8px;" data-i18n="your_wishes">Your Wishes</h3>
 
     {% for name in selected_members %}
     <div style="margin-bottom: 30px;">
@@ -81,9 +117,9 @@
         <table>
             <thead>
                 <tr>
-                    <th>Wish</th>
-                    <th>Product Link</th>
-                    {% if not wishes_locked %}<th>Actions</th>{% endif %}
+                    <th data-i18n="wish_col">Wish</th>
+                    <th data-i18n="product_link_col">Product Link</th>
+                    {% if not wishes_locked %}<th data-i18n="actions_col">Actions</th>{% endif %}
                 </tr>
             </thead>
             <tbody>
@@ -92,7 +128,7 @@
                     <td>{{ wish.wish_text | nl2br }}</td>
                     <td>
                         {% if wish.product_link %}
-                            <a href="{{ wish.product_link }}" target="_blank">View Product</a>
+                            <a href="{{ wish.product_link }}" target="_blank" data-i18n="view_product">View Product</a>
                         {% else %}
                             -
                         {% endif %}
@@ -101,7 +137,7 @@
                     <td>
                         <form method="POST" action="{{ url_for('delete_wish', wish_id=wish.id) }}" style="display: inline;">
                             <input type="hidden" name="source" value="my_wishlist">
-                            <button type="submit" class="btn-delete" onclick="return confirm('Are you sure you want to delete this wish?');">Delete</button>
+                            <button type="submit" class="btn-delete" onclick="return confirm('Are you sure you want to delete this wish?');" data-i18n="delete_btn">Delete</button>
                         </form>
                     </td>
                     {% endif %}
@@ -110,7 +146,7 @@
             </tbody>
         </table>
         {% else %}
-        <p style="color: #666; font-style: italic;">No wishes added yet for {{ name }}.</p>
+        <p style="color: #666; font-style: italic;"><span data-i18n="no_wishes_prefix">No wishes added yet for</span> {{ name }}.</p>
         {% endif %}
     </div>
     {% endfor %}
@@ -125,7 +161,7 @@
     {% endfor %}
 
     {% if receiver_not_self %}
-    <h3 style="margin-top: 30px; color: #007bff; border-bottom: 2px solid #007bff; padding-bottom: 8px;">You Are Buying For</h3>
+    <h3 style="margin-top: 30px; color: #007bff; border-bottom: 2px solid #007bff; padding-bottom: 8px;" data-i18n="you_are_buying_for">You Are Buying For</h3>
     {% for name in receiver_not_self %}
     <div style="margin-bottom: 30px;">
         <h4 style="color: #333;">🛍️ {{ name }}'s Wishes</h4>
@@ -133,8 +169,8 @@
         <table>
             <thead>
                 <tr>
-                    <th>Wish</th>
-                    <th>Product Link</th>
+                    <th data-i18n="wish_col">Wish</th>
+                    <th data-i18n="product_link_col">Product Link</th>
                 </tr>
             </thead>
             <tbody>
@@ -143,7 +179,7 @@
                     <td>{{ wish.wish_text | nl2br }}</td>
                     <td>
                         {% if wish.product_link %}
-                            <a href="{{ wish.product_link }}" target="_blank">View Product</a>
+                            <a href="{{ wish.product_link }}" target="_blank" data-i18n="view_product">View Product</a>
                         {% else %}
                             -
                         {% endif %}
@@ -153,10 +189,40 @@
             </tbody>
         </table>
         {% else %}
-        <p style="color: #666; font-style: italic;">No wishes added yet for {{ name }}.</p>
+        <p style="color: #666; font-style: italic;"><span data-i18n="no_wishes_prefix">No wishes added yet for</span> {{ name }}.</p>
         {% endif %}
     </div>
     {% endfor %}
     {% endif %}
+
+    <!-- Comments section -->
+    <div class="comments-section">
+        <h3 data-i18n="comments_title">💬 Comments</h3>
+
+        {% if comments %}
+            {% for comment in comments %}
+            <div class="comment-item">
+                <div class="comment-author">
+                    {{ comment.author_name if comment.author_name else '<span data-i18n="anonymous">Anonymous</span>' | safe }}
+                </div>
+                <div class="comment-text">{{ comment.comment_text | e }}</div>
+                <div class="comment-date">{{ comment.created_at }}</div>
+            </div>
+            {% endfor %}
+        {% else %}
+        <p style="color: #666; font-style: italic;" data-i18n="no_comments">No comments yet. Be the first to comment! 🎄</p>
+        {% endif %}
+
+        <h4 style="margin-top: 20px; color: #2d6a2d;" data-i18n="leave_comment">Leave a Comment</h4>
+        <form method="POST" action="{{ url_for('add_comment') }}">
+            <label for="comment_author" data-i18n="your_name_opt">Your name (optional — leave blank for anonymous):</label>
+            <input type="text" id="comment_author" name="author_name"
+                   value="{{ selected_members[0] if selected_members else '' }}"
+                   placeholder="...">
+            <label for="comment_text" data-i18n="comment_label">Comment:</label>
+            <textarea id="comment_text" name="comment_text" rows="3" required></textarea>
+            <button type="submit" class="btn-primary" data-i18n="submit_comment">Post Comment</button>
+        </form>
+    </div>
 
 {% endblock %}

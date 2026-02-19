@@ -8,7 +8,7 @@ This application allows family members to:
 - Admin can manage family members pool and run Secret Santa assignments
 """
 
-from flask import Flask, render_template, request, redirect, url_for, session, flash
+from flask import Flask, render_template, request, redirect, url_for, session, flash, make_response
 from functools import wraps
 from markupsafe import Markup, escape
 import random
@@ -96,6 +96,16 @@ def init_db():
         CREATE TABLE IF NOT EXISTS settings (
             key TEXT PRIMARY KEY,
             value TEXT
+        )
+    ''')
+
+    # Create comments table
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS comments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            author_name TEXT,
+            comment_text TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     ''')
 
@@ -309,13 +319,27 @@ def my_wishlist():
     locked = wishes_locked()
     wish_deadline = get_setting('wish_deadline')
 
+    # Count members who have at least one wish vs total members
+    conn2 = get_db_connection()
+    total_members = conn2.execute('SELECT COUNT(*) FROM family_members').fetchone()[0]
+    members_with_wishes = conn2.execute(
+        'SELECT COUNT(DISTINCT person_name) FROM wishes'
+    ).fetchone()[0]
+    comments = conn2.execute(
+        'SELECT * FROM comments ORDER BY created_at DESC'
+    ).fetchall()
+    conn2.close()
+
     return render_template('my_wishlist.html',
                            wishes_by_person=wishes_by_person,
                            selected_members=valid_names,
                            assigned_to=assigned_to,
                            all_family_members=all_family_members,
                            wishes_locked=locked,
-                           wish_deadline=wish_deadline)
+                           wish_deadline=wish_deadline,
+                           members_with_wishes=members_with_wishes,
+                           total_members=total_members,
+                           comments=comments)
 
 
 
@@ -545,6 +569,41 @@ def edit_family_member(member_id):
         conn.close()
     
     return redirect(url_for('admin_panel'))
+
+
+@app.route('/admin/reset', methods=['POST'])
+@login_required
+def admin_reset():
+    """
+    Reset all wishes and Secret Santa assignments.
+    Family members remain untouched.
+    """
+    conn = get_db_connection()
+    conn.execute('DELETE FROM wishes')
+    conn.execute('DELETE FROM secret_santa')
+    conn.commit()
+    conn.close()
+    flash('All wishes and Secret Santa assignments have been reset.', 'success')
+    return redirect(url_for('admin_panel'))
+
+
+@app.route('/add_comment', methods=['POST'])
+def add_comment():
+    """
+    Add a comment to the shared comment section.
+    author_name is optional; blank means anonymous.
+    """
+    author_name = request.form.get('author_name', '').strip() or None
+    comment_text = request.form.get('comment_text', '').strip()
+    if comment_text:
+        conn = get_db_connection()
+        conn.execute(
+            'INSERT INTO comments (author_name, comment_text) VALUES (?, ?)',
+            (author_name, comment_text)
+        )
+        conn.commit()
+        conn.close()
+    return redirect(url_for('my_wishlist'))
 
 
 if __name__ == '__main__':

@@ -22,6 +22,13 @@
         {% endif %}
     {% endwith %}
     
+    <!-- Reset section -->
+    <h3 style="margin-top: 40px; color: #dc3545;">⚠️ Danger Zone</h3>
+    <p style="color: #666; font-size: 0.9em;">This action deletes <strong>all wishes</strong> and <strong>all Secret Santa assignments</strong>. Family members will <em>not</em> be removed.</p>
+    <form method="POST" action="{{ url_for('admin_reset') }}" style="background: #fff5f5; border-color: #f5c6cb;">
+        <button type="submit" class="btn-danger" onclick="return confirm('Are you sure? This will permanently delete ALL wishes and Secret Santa assignments. This cannot be undone.');">🗑️ Reset All Wishes &amp; Assignments</button>
+    </form>
+
     <!-- Wish Deadline section -->
     <h3 style="margin-top: 40px;">📅 Wish Deadline</h3>
     <p style="color: #666; font-size: 0.9em;">After this date, the wish list becomes read-only and no new wishes can be added. Leave blank to allow wishes at any time.</p>
