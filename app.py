@@ -105,9 +105,9 @@ TRANSLATIONS = {
         'view_product': 'View Product',
         'no_wishes_admin': 'No wishes added yet.',
         'reset_section': '🔄 Reset',
-        'reset_btn': 'Reset All Wishes & Assignments',
-        'reset_confirm': 'This will delete ALL wishes and ALL Secret Santa assignments. Are you sure?',
-        'reset_desc': 'This will delete all wishes and reset the Secret Santa assignments.',
+        'reset_btn': 'Reset All Wishes, Assignments & Comments',
+        'reset_confirm': 'This will delete ALL wishes, ALL Secret Santa assignments, and ALL comments. Are you sure?',
+        'reset_desc': 'This will delete all wishes, reset the Secret Santa assignments, and delete all comments.',
         'delete_member_confirm': 'Are you sure? This will also delete all wishes for',
     },
     'de': {
@@ -191,9 +191,9 @@ TRANSLATIONS = {
         'view_product': 'Produkt ansehen',
         'no_wishes_admin': 'Noch keine Wünsche eingetragen.',
         'reset_section': '🔄 Zurücksetzen',
-        'reset_btn': 'Alle Wünsche & Zuteilungen zurücksetzen',
-        'reset_confirm': 'Hiermit werden ALLE Wünsche und ALLE Wichtel-Zuteilungen gelöscht. Bist du sicher?',
-        'reset_desc': 'Dies löscht alle Wünsche und setzt die Wichtel-Zuteilungen zurück.',
+        'reset_btn': 'Alle Wünsche, Zuteilungen & Kommentare zurücksetzen',
+        'reset_confirm': 'Hiermit werden ALLE Wünsche, ALLE Wichtel-Zuteilungen und ALLE Kommentare gelöscht. Bist du sicher?',
+        'reset_desc': 'Dies löscht alle Wünsche, setzt die Wichtel-Zuteilungen zurück und löscht alle Kommentare.',
         'delete_member_confirm': 'Bist du sicher? Dadurch werden auch alle Wünsche für',
     },
     'ru': {
@@ -277,9 +277,9 @@ TRANSLATIONS = {
         'view_product': 'Смотреть товар',
         'no_wishes_admin': 'Пожеланий ещё нет.',
         'reset_section': '🔄 Сброс',
-        'reset_btn': 'Сбросить все пожелания и жеребьёвку',
-        'reset_confirm': 'Это удалит ВСЕ пожелания и ВСЮ жеребьёвку. Ты уверен?',
-        'reset_desc': 'Удаляет все пожелания и сбрасывает жеребьёвку.',
+        'reset_btn': 'Сбросить все пожелания, жеребьёвку и комментарии',
+        'reset_confirm': 'Это удалит ВСЕ пожелания, ВСЮ жеребьёвку и ВСЕ комментарии. Ты уверен?',
+        'reset_desc': 'Удаляет все пожелания, сбрасывает жеребьёвку и удаляет все комментарии.',
         'delete_member_confirm': 'Ты уверен? Это также удалит все пожелания для',
     },
 }
@@ -724,14 +724,15 @@ def set_deadline():
 @login_required
 def admin_reset():
     """
-    Reset all wishes and Secret Santa assignments.
+    Reset all wishes, Secret Santa assignments, and comments.
     """
     conn = get_db_connection()
     conn.execute('DELETE FROM wishes')
     conn.execute('DELETE FROM secret_santa')
+    conn.execute('DELETE FROM comments')
     conn.commit()
     conn.close()
-    flash('All wishes and Secret Santa assignments have been reset.', 'success')
+    flash('All wishes, Secret Santa assignments, and comments have been reset.', 'success')
     return redirect(url_for('admin_panel'))
 
 
