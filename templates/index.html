@@ -1,15 +1,20 @@
 {% extends "base.html" %}
 
 {% block content %}
-    <div class="info">
-        <p><strong>Total Wishes:</strong> {{ total_wishes }}</p>
+    <div style="margin-bottom: 20px; text-align: center;">
+        <a href="{{ url_for('admin_login') }}" style="padding: 8px 16px; background-color: #6c757d; color: white; border-radius: 4px; text-decoration: none;">Admin Panel</a>
     </div>
 
     <!-- Form to add a new wish -->
     <h2>Add a New Wish</h2>
     <form method="POST" action="{{ url_for('add_wish') }}">
         <label for="person_name">Person Name (required):</label>
-        <input type="text" id="person_name" name="person_name" required>
+        <select id="person_name" name="person_name" required style="width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ddd; border-radius: 4px;">
+            <option value="">Select a family member</option>
+            {% for person_name in wishes_by_person.keys() %}
+                <option value="{{ person_name }}">{{ person_name }}</option>
+            {% endfor %}
+        </select>
         
         <label for="wish_text">Wish Text (required):</label>
         <textarea id="wish_text" name="wish_text" rows="3" required></textarea>
@@ -20,60 +25,71 @@
         <button type="submit" class="btn-primary">Add Wish</button>
     </form>
 
-    <!-- Table displaying all wishes -->
-    <h2>All Wishes</h2>
-    {% if wishes %}
-    <table>
-        <thead>
-            <tr>
-                <th>Person Name</th>
-                <th>Wish Text</th>
-                <th>Product Link</th>
-                <th>Status</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for wish in wishes %}
-            <tr class="{% if wish.reserved %}reserved{% endif %}">
-                <td>{{ wish.person_name }}</td>
-                <td>{{ wish.wish_text }}</td>
-                <td>
-                    {% if wish.product_link %}
-                        <a href="{{ wish.product_link }}" target="_blank">View Product</a>
-                    {% else %}
-                        -
-                    {% endif %}
-                </td>
-                <td>
-                    {% if wish.reserved %}
-                        <strong style="color: #c41e3a;">✓ Reserved</strong>
-                    {% else %}
-                        Available
-                    {% endif %}
-                </td>
-                <td>
-                    <!-- Reserve/Unreserve button -->
-                    <form method="POST" action="{{ url_for('reserve_wish', wish_id=wish.id) }}" style="display: inline;">
-                        {% if wish.reserved %}
-                            <button type="submit" class="btn-unreserve">Unreserve</button>
-                        {% else %}
-                            <button type="submit" class="btn-reserve">Reserve</button>
-                        {% endif %}
-                    </form>
-                    
-                    <!-- Delete button -->
-                    <form method="POST" action="{{ url_for('delete_wish', wish_id=wish.id) }}" style="display: inline;">
-                        <button type="submit" class="btn-delete" onclick="return confirm('Are you sure you want to delete this wish?');">Delete</button>
-                    </form>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    <!-- Display wishes grouped by person -->
+    <h2>Family Wish Lists</h2>
+    {% if wishes_by_person %}
+        {% for person_name, wishes in wishes_by_person.items() %}
+        <div style="margin-bottom: 40px;">
+            <h3 style="color: #c41e3a; border-bottom: 2px solid #c41e3a; padding-bottom: 10px;">
+                🎁 {{ person_name }}'s Wishes
+                <span style="font-size: 14px; font-weight: normal; color: #666;">({{ wishes|length }} wish{% if wishes|length != 1 %}es{% endif %})</span>
+            </h3>
+            
+            {% if wishes %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Wish</th>
+                        <th>Product Link</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for wish in wishes %}
+                    <tr class="{% if wish.reserved %}reserved{% endif %}">
+                        <td>{{ wish.wish_text }}</td>
+                        <td>
+                            {% if wish.product_link %}
+                                <a href="{{ wish.product_link }}" target="_blank">View Product</a>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if wish.reserved %}
+                                <strong style="color: #c41e3a;">✓ Reserved</strong>
+                            {% else %}
+                                Available
+                            {% endif %}
+                        </td>
+                        <td>
+                            <!-- Reserve/Unreserve button -->
+                            <form method="POST" action="{{ url_for('reserve_wish', wish_id=wish.id) }}" style="display: inline;">
+                                {% if wish.reserved %}
+                                    <button type="submit" class="btn-unreserve">Unreserve</button>
+                                {% else %}
+                                    <button type="submit" class="btn-reserve">Reserve</button>
+                                {% endif %}
+                            </form>
+                            
+                            <!-- Delete button -->
+                            <form method="POST" action="{{ url_for('delete_wish', wish_id=wish.id) }}" style="display: inline;">
+                                <button type="submit" class="btn-delete" onclick="return confirm('Are you sure you want to delete this wish?');">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p style="color: #666; font-style: italic; margin: 20px 0;">No wishes added yet for {{ person_name }}.</p>
+            {% endif %}
+        </div>
+        {% endfor %}
     {% else %}
     <p style="text-align: center; color: #666; margin: 40px 0;">
-        No wishes yet. Add the first one above! 🎁
+        No family members in the pool yet. Please ask the admin to add family members first! 👨‍👩‍👧‍👦
     </p>
     {% endif %}
 {% endblock %}

@@ -6,16 +6,23 @@ This application allows family members to:
 - Reserve wishes (so others know it's being handled)
 - Delete wishes
 - View all wishes in a simple table
+- Admin can manage family members pool
 """
 
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, session
+from functools import wraps
 import sqlite3
 import os
 
 app = Flask(__name__)
+app.secret_key = 'your-secret-key-change-this-in-production'
 
 # Database configuration
 DATABASE = 'wishlist.db'
+
+# Admin credentials (in production, use environment variables and hashed passwords)
+ADMIN_USERNAME = 'admin'
+ADMIN_PASSWORD = 'admin123'
 
 
 def get_db_connection():
@@ -31,9 +38,19 @@ def get_db_connection():
 def init_db():
     """
     Initialize the database if it doesn't exist.
-    Creates the wishes table with required columns.
+    Creates the wishes and family_members tables with required columns.
     """
     conn = get_db_connection()
+    
+    # Create family_members table
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS family_members (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE
+        )
+    ''')
+    
+    # Create wishes table
     conn.execute('''
         CREATE TABLE IF NOT EXISTS wishes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -47,23 +64,44 @@ def init_db():
     conn.close()
 
 
+def login_required(f):
+    """
+    Decorator to require admin login for protected routes.
+    """
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'logged_in' not in session:
+            return redirect(url_for('admin_login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
 @app.route('/')
 def index():
     """
-    Homepage route - displays all wishes in a table.
-    Unreserved wishes are shown first (sorted by reserved status).
+    Homepage route - displays all wishes grouped by person in a table.
+    Shows wishes for each family member.
     """
     conn = get_db_connection()
-    # Sort by reserved (0 first, then 1) so unreserved wishes appear at top
-    wishes = conn.execute(
-        'SELECT * FROM wishes ORDER BY reserved ASC, id DESC'
+    
+    # Get all family members
+    family_members = conn.execute(
+        'SELECT name FROM family_members ORDER BY name ASC'
     ).fetchall()
+    
+    # Get all wishes grouped by person
+    wishes_by_person = {}
+    for member in family_members:
+        person_name = member['name']
+        wishes = conn.execute(
+            'SELECT * FROM wishes WHERE person_name = ? ORDER BY reserved ASC, id DESC',
+            (person_name,)
+        ).fetchall()
+        wishes_by_person[person_name] = wishes
+    
     conn.close()
     
-    # Count total wishes
-    total_wishes = len(wishes)
-    
-    return render_template('index.html', wishes=wishes, total_wishes=total_wishes)
+    return render_template('index.html', wishes_by_person=wishes_by_person)
 
 
 @app.route('/add', methods=['POST'])
@@ -71,6 +109,7 @@ def add_wish():
     """
     Add a new wish to the database.
     Accepts POST data with person_name, wish_text, and optional product_link.
+    Only allows wishes for family members in the pool.
     Redirects back to homepage after successful insertion.
     """
     person_name = request.form.get('person_name')
@@ -80,11 +119,20 @@ def add_wish():
     # Validate required fields
     if person_name and wish_text:
         conn = get_db_connection()
-        conn.execute(
-            'INSERT INTO wishes (person_name, wish_text, product_link) VALUES (?, ?, ?)',
-            (person_name, wish_text, product_link)
-        )
-        conn.commit()
+        
+        # Check if person is in family members pool
+        member = conn.execute(
+            'SELECT id FROM family_members WHERE name = ?',
+            (person_name,)
+        ).fetchone()
+        
+        if member:
+            conn.execute(
+                'INSERT INTO wishes (person_name, wish_text, product_link) VALUES (?, ?, ?)',
+                (person_name, wish_text, product_link)
+            )
+            conn.commit()
+        
         conn.close()
     
     return redirect(url_for('index'))
@@ -122,6 +170,143 @@ def delete_wish(wish_id):
     conn.close()
     
     return redirect(url_for('index'))
+
+
+@app.route('/admin/login', methods=['GET', 'POST'])
+def admin_login():
+    """
+    Admin login page with basic authentication.
+    """
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        
+        if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
+            session['logged_in'] = True
+            return redirect(url_for('admin_panel'))
+        else:
+            return render_template('admin_login.html', error='Invalid credentials')
+    
+    return render_template('admin_login.html')
+
+
+@app.route('/admin/logout')
+def admin_logout():
+    """
+    Logout admin user.
+    """
+    session.pop('logged_in', None)
+    return redirect(url_for('index'))
+
+
+@app.route('/admin')
+@login_required
+def admin_panel():
+    """
+    Admin panel to manage family members pool.
+    """
+    conn = get_db_connection()
+    family_members = conn.execute(
+        'SELECT * FROM family_members ORDER BY name ASC'
+    ).fetchall()
+    conn.close()
+    
+    return render_template('admin_panel.html', family_members=family_members)
+
+
+@app.route('/admin/add_member', methods=['POST'])
+@login_required
+def add_family_member():
+    """
+    Add a new family member to the pool.
+    """
+    name = request.form.get('name')
+    
+    if name:
+        conn = get_db_connection()
+        try:
+            conn.execute(
+                'INSERT INTO family_members (name) VALUES (?)',
+                (name,)
+            )
+            conn.commit()
+        except sqlite3.IntegrityError:
+            # Name already exists
+            pass
+        conn.close()
+    
+    return redirect(url_for('admin_panel'))
+
+
+@app.route('/admin/delete_member/<int:member_id>', methods=['POST'])
+@login_required
+def delete_family_member(member_id):
+    """
+    Delete a family member from the pool.
+    Also deletes all wishes associated with that member.
+    """
+    conn = get_db_connection()
+    
+    # Get the member name first
+    member = conn.execute(
+        'SELECT name FROM family_members WHERE id = ?',
+        (member_id,)
+    ).fetchone()
+    
+    if member:
+        # Delete all wishes for this member
+        conn.execute('DELETE FROM wishes WHERE person_name = ?', (member['name'],))
+        
+        # Delete the member
+        conn.execute('DELETE FROM family_members WHERE id = ?', (member_id,))
+        conn.commit()
+    
+    conn.close()
+    return redirect(url_for('admin_panel'))
+
+
+@app.route('/admin/edit_member/<int:member_id>', methods=['POST'])
+@login_required
+def edit_family_member(member_id):
+    """
+    Edit a family member's name.
+    Also updates all wishes with the old name to use the new name.
+    """
+    new_name = request.form.get('name')
+    
+    if new_name:
+        conn = get_db_connection()
+        
+        # Get the old name
+        member = conn.execute(
+            'SELECT name FROM family_members WHERE id = ?',
+            (member_id,)
+        ).fetchone()
+        
+        if member:
+            old_name = member['name']
+            
+            try:
+                # Update the member name
+                conn.execute(
+                    'UPDATE family_members SET name = ? WHERE id = ?',
+                    (new_name, member_id)
+                )
+                
+                # Update all wishes with the old name
+                conn.execute(
+                    'UPDATE wishes SET person_name = ? WHERE person_name = ?',
+                    (new_name, old_name)
+                )
+                
+                conn.commit()
+            except sqlite3.IntegrityError:
+                # Name already exists
+                pass
+        
+        conn.close()
+    
+    return redirect(url_for('admin_panel'))
 
 
 if __name__ == '__main__':
