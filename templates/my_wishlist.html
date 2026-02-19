@@ -202,7 +202,15 @@
     <h4 style="color: #2d6a2d;">{{ t.add_comment }}</h4>
     <form method="POST" action="{{ url_for('add_comment') }}">
         <label for="author_name">{{ t.your_name_label }}</label>
-        <input type="text" id="author_name" name="author_name" placeholder="{{ t.anonymous }}">
+        <select id="author_name" name="author_name" style="width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ddd; border-radius: 4px;">
+            <option value="">{{ t.anonymous }}</option>
+            {% for member in all_family_members %}
+                <option value="{{ member.name }}"
+                    {% if selected_members | length == 1 and member.name == selected_members[0] %}selected{% endif %}>
+                    {{ member.name }}{% if member.name in selected_members %} {{ t.you_suffix }}{% endif %}
+                </option>
+            {% endfor %}
+        </select>
         <label for="comment_text">{{ t.comment_text }}</label>
         <textarea id="comment_text" name="comment_text" rows="3" required></textarea>
         <button type="submit" class="btn-primary">{{ t.post_comment }}</button>
