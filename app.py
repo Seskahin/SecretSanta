@@ -3,14 +3,15 @@ Flask Web Application for Family Christmas Wish List
 
 This application allows family members to:
 - Add wishes to a shared list
-- Reserve wishes (so others know it's being handled)
 - Delete wishes
 - View all wishes in a simple table
-- Admin can manage family members pool
+- Admin can manage family members pool and run Secret Santa assignments
 """
 
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 from functools import wraps
+from markupsafe import Markup, escape
+import random
 import sqlite3
 import os
 
@@ -18,6 +19,12 @@ app = Flask(__name__)
 # NOTE: In production, use a secure random key from environment variable:
 # app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24))
 app.secret_key = 'your-secret-key-change-this-in-production'
+
+
+@app.template_filter('nl2br')
+def nl2br_filter(value):
+    """Convert newlines in text to HTML <br> tags, safely escaping HTML."""
+    return Markup(escape(value).replace('\n', Markup('<br>\n')))
 
 # Database configuration
 DATABASE = 'wishlist.db'
@@ -44,7 +51,7 @@ def get_db_connection():
 def init_db():
     """
     Initialize the database if it doesn't exist.
-    Creates the wishes and family_members tables with required columns.
+    Creates the wishes, family_members, and secret_santa tables.
     """
     conn = get_db_connection()
     
@@ -66,6 +73,15 @@ def init_db():
             reserved INTEGER DEFAULT 0
         )
     ''')
+
+    # Create secret_santa table
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS secret_santa (
+            giver_name TEXT PRIMARY KEY,
+            receiver_name TEXT NOT NULL
+        )
+    ''')
+
     conn.commit()
     conn.close()
 
@@ -100,7 +116,7 @@ def index():
     for member in family_members:
         person_name = member['name']
         wishes = conn.execute(
-            'SELECT * FROM wishes WHERE person_name = ? ORDER BY reserved ASC, id DESC',
+            'SELECT * FROM wishes WHERE person_name = ? ORDER BY id DESC',
             (person_name,)
         ).fetchall()
         wishes_by_person[person_name] = wishes
@@ -116,11 +132,12 @@ def add_wish():
     Add a new wish to the database.
     Accepts POST data with person_name, wish_text, and optional product_link.
     Only allows wishes for family members in the pool.
-    Redirects back to homepage after successful insertion.
+    Redirects back to the source page after successful insertion.
     """
     person_name = request.form.get('person_name')
     wish_text = request.form.get('wish_text')
     product_link = request.form.get('product_link', '')
+    source = request.form.get('source', '')
     
     # Validate required fields
     if person_name and wish_text:
@@ -141,27 +158,8 @@ def add_wish():
         
         conn.close()
     
-    return redirect(url_for('index'))
-
-
-@app.route('/reserve/<int:wish_id>', methods=['POST'])
-def reserve_wish(wish_id):
-    """
-    Toggle the reserved status of a wish.
-    If reserved (1), changes to unreserved (0), and vice versa.
-    """
-    conn = get_db_connection()
-    
-    # Get current reserved status
-    wish = conn.execute('SELECT reserved FROM wishes WHERE id = ?', (wish_id,)).fetchone()
-    
-    if wish:
-        # Toggle reserved status (0 -> 1 or 1 -> 0)
-        new_status = 0 if wish['reserved'] == 1 else 1
-        conn.execute('UPDATE wishes SET reserved = ? WHERE id = ?', (new_status, wish_id))
-        conn.commit()
-    
-    conn.close()
+    if source == 'my_wishlist':
+        return redirect(url_for('my_wishlist'))
     return redirect(url_for('index'))
 
 
@@ -170,12 +168,99 @@ def delete_wish(wish_id):
     """
     Delete a wish from the database by its ID.
     """
+    source = request.form.get('source', '')
     conn = get_db_connection()
     conn.execute('DELETE FROM wishes WHERE id = ?', (wish_id,))
     conn.commit()
     conn.close()
     
+    if source == 'my_wishlist':
+        return redirect(url_for('my_wishlist'))
     return redirect(url_for('index'))
+
+
+@app.route('/who_are_you', methods=['GET', 'POST'])
+def who_are_you():
+    """
+    Page where user selects which family member(s) they are.
+    Stores selection in session and redirects to personalized wishlist.
+    """
+    conn = get_db_connection()
+    family_members = conn.execute(
+        'SELECT name FROM family_members ORDER BY name ASC'
+    ).fetchall()
+    conn.close()
+
+    if request.method == 'POST':
+        selected = request.form.getlist('selected_members')
+        if selected:
+            session['selected_members'] = selected
+            return redirect(url_for('my_wishlist'))
+        return render_template('who_are_you.html', family_members=family_members,
+                               error='Please select at least one family member.')
+
+    return render_template('who_are_you.html', family_members=family_members)
+
+
+@app.route('/my_wishlist')
+def my_wishlist():
+    """
+    Personalized wishlist view: shows own wishes and the wishes of the
+    Secret Santa receiver for each selected family member.
+    """
+    selected_members = session.get('selected_members', [])
+    if not selected_members:
+        return redirect(url_for('who_are_you'))
+
+    conn = get_db_connection()
+
+    # Validate selected members still exist
+    placeholders = ','.join(['?'] * len(selected_members))
+    query = 'SELECT name FROM family_members WHERE name IN (' + placeholders + ')'
+    valid = conn.execute(query, selected_members).fetchall()
+    valid_names = [r['name'] for r in valid]
+    if not valid_names:
+        session.pop('selected_members', None)
+        conn.close()
+        return redirect(url_for('who_are_you'))
+
+    # Get Secret Santa assignments for selected members
+    assigned_to = {}
+    for name in valid_names:
+        assignment = conn.execute(
+            'SELECT receiver_name FROM secret_santa WHERE giver_name = ?',
+            (name,)
+        ).fetchone()
+        if assignment:
+            assigned_to[name] = assignment['receiver_name']
+
+    # Build set of all relevant names: own + assigned receivers
+    names_to_show = set(valid_names)
+    for receiver in assigned_to.values():
+        names_to_show.add(receiver)
+
+    # Get all family members for the add-wish dropdown (only own members)
+    family_members = conn.execute(
+        'SELECT name FROM family_members ORDER BY name ASC'
+    ).fetchall()
+
+    # Get wishes for all relevant people
+    wishes_by_person = {}
+    for person_name in names_to_show:
+        wishes = conn.execute(
+            'SELECT * FROM wishes WHERE person_name = ? ORDER BY id DESC',
+            (person_name,)
+        ).fetchall()
+        wishes_by_person[person_name] = wishes
+
+    conn.close()
+
+    return render_template('my_wishlist.html',
+                           wishes_by_person=wishes_by_person,
+                           selected_members=valid_names,
+                           assigned_to=assigned_to,
+                           family_members=family_members)
+
 
 
 @app.route('/admin/login', methods=['GET', 'POST'])
@@ -209,15 +294,54 @@ def admin_logout():
 @login_required
 def admin_panel():
     """
-    Admin panel to manage family members pool.
+    Admin panel to manage family members pool, Secret Santa, and view all wishes.
     """
     conn = get_db_connection()
     family_members = conn.execute(
         'SELECT * FROM family_members ORDER BY name ASC'
     ).fetchall()
+    secret_santa = conn.execute(
+        'SELECT * FROM secret_santa ORDER BY giver_name ASC'
+    ).fetchall()
+    all_wishes = conn.execute(
+        'SELECT * FROM wishes ORDER BY person_name ASC, id DESC'
+    ).fetchall()
     conn.close()
     
-    return render_template('admin_panel.html', family_members=family_members)
+    return render_template('admin_panel.html', family_members=family_members,
+                           secret_santa=secret_santa, all_wishes=all_wishes)
+
+
+@app.route('/admin/run_secret_santa', methods=['POST'])
+@login_required
+def run_secret_santa():
+    """
+    Run the Secret Santa assignment: creates a random circular assignment
+    where each person gives to exactly one other person.
+    """
+    conn = get_db_connection()
+    members = conn.execute(
+        'SELECT name FROM family_members ORDER BY name ASC'
+    ).fetchall()
+    names = [m['name'] for m in members]
+
+    if len(names) < 2:
+        flash('Need at least 2 family members for Secret Santa!', 'error')
+        conn.close()
+        return redirect(url_for('admin_panel'))
+
+    random.shuffle(names)
+    conn.execute('DELETE FROM secret_santa')
+    for i, giver in enumerate(names):
+        receiver = names[(i + 1) % len(names)]
+        conn.execute(
+            'INSERT INTO secret_santa (giver_name, receiver_name) VALUES (?, ?)',
+            (giver, receiver)
+        )
+    conn.commit()
+    conn.close()
+    flash('Secret Santa assignments created successfully!', 'success')
+    return redirect(url_for('admin_panel'))
 
 
 @app.route('/admin/add_member', methods=['POST'])

@@ -136,7 +136,17 @@
     </style>
 </head>
 <body>
-    <h1>🎄 Family Christmas Wish List 🎅</h1>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <div style="flex: 1;"></div>
+        <h1 style="flex: 0; margin: 10px 0; color: #c41e3a;">🎄 Family Christmas Wish List 🎅</h1>
+        <div style="flex: 1; text-align: right;">
+            {% if session.get('logged_in') %}
+                <a href="{{ url_for('admin_panel') }}" style="padding: 8px 16px; background-color: #6c757d; color: white; border-radius: 4px; text-decoration: none;">Admin</a>
+            {% else %}
+                <a href="{{ url_for('admin_login') }}" style="padding: 8px 16px; background-color: #6c757d; color: white; border-radius: 4px; text-decoration: none;">Admin</a>
+            {% endif %}
+        </div>
+    </div>
     <div class="container">
         {% block content %}{% endblock %}
     </div>
