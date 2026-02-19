@@ -32,7 +32,9 @@
     </p>
     {% endif %}
 
+    {% if session.get('selected_members') %}
     <div style="text-align: center; margin-top: 20px;">
-        <a href="{{ url_for('index') }}">← Back to Home</a>
+        <a href="{{ url_for('my_wishlist') }}">← Back to My Wishlist</a>
     </div>
+    {% endif %}
 {% endblock %}

@@ -14,9 +14,9 @@
 
     {% if assigned_to %}
     <p style="color: #666;">
-        Secret Santa:
+        Secret Santa:<br>
         {% for giver, receiver in assigned_to.items() %}
-            <strong>{{ giver }}</strong> → buys for <strong>{{ receiver }}</strong>{% if not loop.last %}, {% endif %}
+            <strong>{{ giver }}</strong> → buys for <strong>{{ receiver }}</strong><br>
         {% endfor %}
     </p>
     {% else %}
@@ -137,6 +137,6 @@
     {% endif %}
 
     <div style="margin-top: 20px;">
-        <a href="{{ url_for('index') }}">← Back to Home</a>
+        <a href="{{ url_for('who_are_you') }}">← Change Identity</a>
     </div>
 {% endblock %}
