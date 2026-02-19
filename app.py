@@ -14,6 +14,7 @@ from markupsafe import Markup, escape
 import random
 import sqlite3
 import os
+from datetime import date
 
 app = Flask(__name__)
 # NOTE: In production, use a secure random key from environment variable:
@@ -90,8 +91,48 @@ def init_db():
         )
     ''')
 
+    # Create settings table
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        )
+    ''')
+
     conn.commit()
     conn.close()
+
+
+def get_setting(key, default=None):
+    """Return the value for a settings key, or default if not set."""
+    conn = get_db_connection()
+    row = conn.execute('SELECT value FROM settings WHERE key = ?', (key,)).fetchone()
+    conn.close()
+    return row['value'] if row else default
+
+
+def set_setting(key, value):
+    """Insert or replace a setting key/value pair."""
+    conn = get_db_connection()
+    conn.execute(
+        'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
+        (key, value)
+    )
+    conn.commit()
+    conn.close()
+
+
+def wishes_locked():
+    """Return True if today is strictly after the configured deadline.
+    The deadline date itself is the last day wishes can be added (inclusive)."""
+    deadline_str = get_setting('wish_deadline')
+    if not deadline_str:
+        return False
+    try:
+        deadline = date.fromisoformat(deadline_str)
+        return date.today() > deadline
+    except ValueError:
+        return False
 
 
 def login_required(f):
@@ -123,32 +164,47 @@ def add_wish():
     Add a new wish to the database.
     Accepts POST data with person_name, wish_text, and optional product_link.
     Only allows wishes for family members in the pool.
+    Blocked after the configured wish deadline.
+    If the wish is for someone other than the current user, a flash message is
+    shown instead of displaying the wish.
     Redirects back to the source page after successful insertion.
     """
     person_name = request.form.get('person_name')
     wish_text = request.form.get('wish_text')
     product_link = request.form.get('product_link', '')
     source = request.form.get('source', '')
-    
+
+    # Block new wishes after the deadline
+    if wishes_locked():
+        flash('Wishes are no longer accepted — the deadline has passed.', 'error')
+        if source == 'my_wishlist':
+            return redirect(url_for('my_wishlist'))
+        return redirect(url_for('index'))
+
     # Validate required fields
     if person_name and wish_text:
         conn = get_db_connection()
-        
+
         # Check if person is in family members pool
         member = conn.execute(
             'SELECT id FROM family_members WHERE name = ?',
             (person_name,)
         ).fetchone()
-        
+
         if member:
             conn.execute(
                 'INSERT INTO wishes (person_name, wish_text, product_link) VALUES (?, ?, ?)',
                 (person_name, wish_text, product_link)
             )
             conn.commit()
-        
+
+            # If wishing on behalf of another member, show confirmation only
+            selected_members = session.get('selected_members', [])
+            if person_name not in selected_members:
+                flash(f'🎁 Wish created for {person_name}!', 'success')
+
         conn.close()
-    
+
     if source == 'my_wishlist':
         return redirect(url_for('my_wishlist'))
     return redirect(url_for('index'))
@@ -188,7 +244,7 @@ def who_are_you():
             session['selected_members'] = selected
             return redirect(url_for('my_wishlist'))
         return render_template('who_are_you.html', family_members=family_members,
-                               error='Please select at least one family member.')
+                               error='Please select a family member.')
 
     return render_template('who_are_you.html', family_members=family_members)
 
@@ -230,8 +286,8 @@ def my_wishlist():
     for receiver in assigned_to.values():
         names_to_show.add(receiver)
 
-    # Get all family members for the add-wish dropdown (only own members)
-    family_members = conn.execute(
+    # Get all family members for the add-wish dropdown (own + all for impersonation)
+    all_family_members = conn.execute(
         'SELECT name FROM family_members ORDER BY name ASC'
     ).fetchall()
 
@@ -246,11 +302,16 @@ def my_wishlist():
 
     conn.close()
 
+    locked = wishes_locked()
+    wish_deadline = get_setting('wish_deadline')
+
     return render_template('my_wishlist.html',
                            wishes_by_person=wishes_by_person,
                            selected_members=valid_names,
                            assigned_to=assigned_to,
-                           family_members=family_members)
+                           all_family_members=all_family_members,
+                           wishes_locked=locked,
+                           wish_deadline=wish_deadline)
 
 
 
@@ -298,9 +359,28 @@ def admin_panel():
         'SELECT * FROM wishes ORDER BY person_name ASC, id DESC'
     ).fetchall()
     conn.close()
-    
+
+    wish_deadline = get_setting('wish_deadline')
+
     return render_template('admin_panel.html', family_members=family_members,
-                           secret_santa=secret_santa, all_wishes=all_wishes)
+                           secret_santa=secret_santa, all_wishes=all_wishes,
+                           wish_deadline=wish_deadline)
+
+
+@app.route('/admin/set_deadline', methods=['POST'])
+@login_required
+def set_deadline():
+    """
+    Save or clear the wish deadline date.
+    """
+    deadline = request.form.get('wish_deadline', '').strip()
+    if deadline:
+        set_setting('wish_deadline', deadline)
+        flash(f'Wish deadline set to {deadline}.', 'success')
+    else:
+        set_setting('wish_deadline', '')
+        flash('Wish deadline cleared — wishes can be added at any time.', 'success')
+    return redirect(url_for('admin_panel'))
 
 
 @app.route('/admin/run_secret_santa', methods=['POST'])
