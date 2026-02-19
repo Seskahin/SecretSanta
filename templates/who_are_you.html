@@ -1,10 +1,13 @@
 {% extends "base.html" %}
 
-{% block title %}Who Are You?{% endblock %}
+{% block title %}Who Are You? 🎅{% endblock %}
 
 {% block content %}
-    <h2 style="text-align: center;">Who Are You?</h2>
-    <p style="text-align: center; color: #666;">Select your name to see your personal wishlist view.</p>
+    <div style="text-align: center; margin-bottom: 10px;">
+        <span style="font-size: 2.5em;">🎄🎅🎄</span>
+    </div>
+    <h2 style="text-align: center; color: #c41e3a;">Who Are You?</h2>
+    <p style="text-align: center; color: #555;">Select your name(s) to see your personal wishlist.</p>
 
     {% if error %}
     <div style="background-color: #f8d7da; color: #721c24; padding: 10px; border-radius: 5px; margin-bottom: 15px; text-align: center;">
@@ -13,28 +16,22 @@
     {% endif %}
 
     {% if family_members %}
-    <form method="POST" action="{{ url_for('who_are_you') }}" style="max-width: 400px; margin: 0 auto;">
-        <p style="font-weight: bold; margin-top: 10px;">Select your family member name:</p>
+    <form method="POST" action="{{ url_for('who_are_you') }}" style="max-width: 420px; margin: 0 auto;">
+        <p style="font-weight: bold; margin-top: 10px; color: #2d6a2d;">🎁 Select your family member name(s):</p>
         {% for member in family_members %}
-        <div style="margin: 8px 0;">
-            <label style="font-weight: normal; display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                <input type="radio" name="selected_members" value="{{ member.name }}"
+        <div class="member-option">
+            <label style="font-weight: normal; display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                <input type="checkbox" name="selected_members" value="{{ member.name }}"
                     {% if session.get('selected_members') and member.name in session.get('selected_members') %}checked{% endif %}>
                 {{ member.name }}
             </label>
         </div>
         {% endfor %}
-        <button type="submit" class="btn-primary" style="margin-top: 15px;">View My Wishlist</button>
+        <button type="submit" class="btn-primary" style="margin-top: 20px; width: 100%; padding: 12px; font-size: 1.05em;">🎅 View My Wishlist</button>
     </form>
     {% else %}
     <p style="text-align: center; color: #666; margin: 40px 0;">
         No family members in the pool yet. Please ask the admin to add family members first! 👨‍👩‍👧‍👦
     </p>
-    {% endif %}
-
-    {% if session.get('selected_members') %}
-    <div style="text-align: center; margin-top: 20px;">
-        <a href="{{ url_for('my_wishlist') }}">← Back to My Wishlist</a>
-    </div>
     {% endif %}
 {% endblock %}

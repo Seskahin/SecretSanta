@@ -5,7 +5,6 @@
 {% block content %}
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
         <h2>🎁 My Wishlist</h2>
-        <a href="{{ url_for('who_are_you') }}" style="padding: 8px 16px; background-color: #6c757d; color: white; border-radius: 4px; text-decoration: none;">Change Selection</a>
     </div>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -160,7 +159,4 @@
     {% endfor %}
     {% endif %}
 
-    <div style="margin-top: 20px;">
-        <a href="{{ url_for('who_are_you') }}">← Change Identity</a>
-    </div>
 {% endblock %}

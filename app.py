@@ -244,7 +244,11 @@ def who_are_you():
             session['selected_members'] = selected
             return redirect(url_for('my_wishlist'))
         return render_template('who_are_you.html', family_members=family_members,
-                               error='Please select a family member.')
+                               error='Please select at least one family member.')
+
+    # If user already has a selection, go straight to the wishlist
+    if session.get('selected_members'):
+        return redirect(url_for('my_wishlist'))
 
     return render_template('who_are_you.html', family_members=family_members)
 
