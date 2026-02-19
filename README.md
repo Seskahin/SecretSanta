@@ -4,12 +4,14 @@ A minimal Flask web application for managing a family Christmas wish list.
 
 ## Features
 
-- Add wishes with person name, wish text, and optional product link
-- Reserve wishes to let others know you're handling them
-- Delete wishes from the list
-- View all wishes in a sortable table
-- Automatic SQLite database creation
-- Simple and clean interface
+- **Family Members Pool**: Manage a database of family members who can have wishes
+- **Admin Panel**: Secure admin interface with basic authentication to manage family members
+- **Add Wishes**: Add wishes for family members with wish text and optional product link
+- **Grouped Display**: View wishes organized by family member in separate tables
+- **Reserve Wishes**: Mark wishes as reserved to let others know you're handling them
+- **Delete Wishes**: Remove wishes from the list
+- **Automatic SQLite Database**: Database is created automatically on first run
+- **Simple and Clean Interface**: Easy-to-use interface with responsive design
 
 ## Requirements
 
@@ -35,9 +37,28 @@ python app.py
 http://127.0.0.1:5000
 ```
 
-3. Add wishes using the form
-4. Reserve wishes by clicking the "Reserve" button
-5. Delete wishes by clicking the "Delete" button
+3. **Admin Setup** (First Time):
+   - Click "Admin Panel" button on the homepage
+   - Login with default credentials:
+     - Username: `admin`
+     - Password: `admin123`
+   - Add family members to the pool
+   - Go back to the homepage
+
+4. **Adding Wishes**:
+   - Select a family member from the dropdown
+   - Enter the wish text
+   - Optionally add a product link
+   - Click "Add Wish"
+
+5. **Managing Wishes**:
+   - Reserve wishes by clicking the "Reserve" button
+   - Unreserve by clicking "Unreserve"
+   - Delete wishes by clicking the "Delete" button
+
+6. **Admin Management**:
+   - Access admin panel to add, edit, or delete family members
+   - Deleting a family member will also delete all their wishes
 
 ## Project Structure
 
@@ -55,6 +76,15 @@ http://127.0.0.1:5000
 
 The application uses a SQLite database with the following schema:
 
+### Family Members Table
+```sql
+CREATE TABLE family_members (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE
+);
+```
+
+### Wishes Table
 ```sql
 CREATE TABLE wishes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -64,3 +94,13 @@ CREATE TABLE wishes (
     reserved INTEGER DEFAULT 0
 );
 ```
+
+## Security Notes
+
+- **Admin Credentials**: The default admin credentials (admin/admin123) are hardcoded for simplicity
+- **Production Use**: For production deployment:
+  - Change the `app.secret_key` in `app.py`
+  - Use environment variables for admin credentials
+  - Implement password hashing (e.g., using bcrypt)
+  - Use HTTPS and a production WSGI server like gunicorn
+  - Consider adding CSRF protection

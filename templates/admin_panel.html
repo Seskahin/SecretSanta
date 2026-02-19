@@ -12,6 +12,16 @@
         <a href="{{ url_for('index') }}" style="padding: 8px 16px; background-color: #007bff; color: white; border-radius: 4px; text-decoration: none;">← Back to Home</a>
     </div>
     
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div style="padding: 10px; margin-bottom: 15px; border-radius: 5px; {% if category == 'success' %}background-color: #d4edda; color: #155724;{% else %}background-color: #f8d7da; color: #721c24;{% endif %}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+    
     <!-- Form to add a new family member -->
     <h3>Add Family Member</h3>
     <form method="POST" action="{{ url_for('add_family_member') }}">

@@ -9,18 +9,24 @@ This application allows family members to:
 - Admin can manage family members pool
 """
 
-from flask import Flask, render_template, request, redirect, url_for, session
+from flask import Flask, render_template, request, redirect, url_for, session, flash
 from functools import wraps
 import sqlite3
 import os
 
 app = Flask(__name__)
+# NOTE: In production, use a secure random key from environment variable:
+# app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24))
 app.secret_key = 'your-secret-key-change-this-in-production'
 
 # Database configuration
 DATABASE = 'wishlist.db'
 
 # Admin credentials (in production, use environment variables and hashed passwords)
+# NOTE: For production use:
+# - Store credentials in environment variables
+# - Use password hashing (bcrypt, werkzeug.security, etc.)
+# - Use a strong password
 ADMIN_USERNAME = 'admin'
 ADMIN_PASSWORD = 'admin123'
 
@@ -230,9 +236,10 @@ def add_family_member():
                 (name,)
             )
             conn.commit()
+            flash(f'Successfully added {name} to the family pool!', 'success')
         except sqlite3.IntegrityError:
             # Name already exists
-            pass
+            flash(f'Error: {name} already exists in the family pool.', 'error')
         conn.close()
     
     return redirect(url_for('admin_panel'))
@@ -300,9 +307,10 @@ def edit_family_member(member_id):
                 )
                 
                 conn.commit()
+                flash(f'Successfully updated {old_name} to {new_name}!', 'success')
             except sqlite3.IntegrityError:
                 # Name already exists
-                pass
+                flash(f'Error: {new_name} already exists in the family pool.', 'error')
         
         conn.close()
     
