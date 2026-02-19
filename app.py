@@ -59,9 +59,17 @@ def init_db():
     conn.execute('''
         CREATE TABLE IF NOT EXISTS family_members (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL UNIQUE
+            name TEXT NOT NULL UNIQUE,
+            team_name TEXT
         )
     ''')
+
+    # Migration: add team_name column if it doesn't exist yet
+    try:
+        conn.execute('ALTER TABLE family_members ADD COLUMN team_name TEXT')
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass  # Column already exists
     
     # Create wishes table
     conn.execute('''
@@ -101,29 +109,12 @@ def login_required(f):
 @app.route('/')
 def index():
     """
-    Homepage route - displays all wishes grouped by person in a table.
-    Shows wishes for each family member.
+    Homepage route - redirects to who_are_you if no identity selected,
+    otherwise redirects to my_wishlist.
     """
-    conn = get_db_connection()
-    
-    # Get all family members
-    family_members = conn.execute(
-        'SELECT name FROM family_members ORDER BY name ASC'
-    ).fetchall()
-    
-    # Get all wishes grouped by person
-    wishes_by_person = {}
-    for member in family_members:
-        person_name = member['name']
-        wishes = conn.execute(
-            'SELECT * FROM wishes WHERE person_name = ? ORDER BY id DESC',
-            (person_name,)
-        ).fetchall()
-        wishes_by_person[person_name] = wishes
-    
-    conn.close()
-    
-    return render_template('index.html', wishes_by_person=wishes_by_person)
+    if session.get('selected_members'):
+        return redirect(url_for('my_wishlist'))
+    return redirect(url_for('who_are_you'))
 
 
 @app.route('/add', methods=['POST'])
@@ -287,7 +278,7 @@ def admin_logout():
     Logout admin user.
     """
     session.pop('logged_in', None)
-    return redirect(url_for('index'))
+    return redirect(url_for('who_are_you'))
 
 
 @app.route('/admin')
@@ -317,23 +308,52 @@ def admin_panel():
 def run_secret_santa():
     """
     Run the Secret Santa assignment: creates a random circular assignment
-    where each person gives to exactly one other person.
+    where each person gives to exactly one other person and no one is
+    assigned to a member of their own team.
     """
     conn = get_db_connection()
     members = conn.execute(
-        'SELECT name FROM family_members ORDER BY name ASC'
+        'SELECT name, team_name FROM family_members ORDER BY name ASC'
     ).fetchall()
     names = [m['name'] for m in members]
+    teams = {m['name']: m['team_name'] for m in members}
 
     if len(names) < 2:
         flash('Need at least 2 family members for Secret Santa!', 'error')
         conn.close()
         return redirect(url_for('admin_panel'))
 
-    random.shuffle(names)
+    # Try to find a valid circular assignment that respects team constraints.
+    # Two members violate the constraint if both have the same non-None team.
+    assignment = None
+    MAX_ATTEMPTS = 200
+    for _ in range(MAX_ATTEMPTS):
+        shuffled = names[:]
+        random.shuffle(shuffled)
+        valid = True
+        for i, giver in enumerate(shuffled):
+            receiver = shuffled[(i + 1) % len(shuffled)]
+            giver_team = teams.get(giver)
+            receiver_team = teams.get(receiver)
+            if giver_team and giver_team == receiver_team:
+                valid = False
+                break
+        if valid:
+            assignment = shuffled
+            break
+
+    if assignment is None:
+        flash(
+            'Could not create a valid Secret Santa assignment with the current team '
+            'constraints. Try adding more participants or adjusting team sizes.',
+            'error'
+        )
+        conn.close()
+        return redirect(url_for('admin_panel'))
+
     conn.execute('DELETE FROM secret_santa')
-    for i, giver in enumerate(names):
-        receiver = names[(i + 1) % len(names)]
+    for i, giver in enumerate(assignment):
+        receiver = assignment[(i + 1) % len(assignment)]
         conn.execute(
             'INSERT INTO secret_santa (giver_name, receiver_name) VALUES (?, ?)',
             (giver, receiver)
@@ -351,13 +371,14 @@ def add_family_member():
     Add a new family member to the pool.
     """
     name = request.form.get('name')
+    team_name = request.form.get('team_name', '').strip() or None
     
     if name:
         conn = get_db_connection()
         try:
             conn.execute(
-                'INSERT INTO family_members (name) VALUES (?)',
-                (name,)
+                'INSERT INTO family_members (name, team_name) VALUES (?, ?)',
+                (name, team_name)
             )
             conn.commit()
             flash(f'Successfully added {name} to the family pool!', 'success')
@@ -400,10 +421,11 @@ def delete_family_member(member_id):
 @login_required
 def edit_family_member(member_id):
     """
-    Edit a family member's name.
+    Edit a family member's name and team.
     Also updates all wishes with the old name to use the new name.
     """
     new_name = request.form.get('name')
+    team_name = request.form.get('team_name', '').strip() or None
     
     if new_name:
         conn = get_db_connection()
@@ -418,10 +440,10 @@ def edit_family_member(member_id):
             old_name = member['name']
             
             try:
-                # Update the member name
+                # Update the member name and team
                 conn.execute(
-                    'UPDATE family_members SET name = ? WHERE id = ?',
-                    (new_name, member_id)
+                    'UPDATE family_members SET name = ?, team_name = ? WHERE id = ?',
+                    (new_name, team_name, member_id)
                 )
                 
                 # Update all wishes with the old name
