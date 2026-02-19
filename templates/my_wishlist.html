@@ -93,7 +93,7 @@
     {% endfor %}
 
     <!-- Wishes of the person you are buying for -->
-    {% set receivers = assigned_to.values() | list | unique | list %}
+    {% set receivers = assigned_to.values() | unique | list %}
     {% set receiver_not_self = [] %}
     {% for r in receivers %}
         {% if r not in selected_members %}

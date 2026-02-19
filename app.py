@@ -215,11 +215,9 @@ def my_wishlist():
     conn = get_db_connection()
 
     # Validate selected members still exist
-    placeholders = ','.join('?' for _ in selected_members)
-    valid = conn.execute(
-        f'SELECT name FROM family_members WHERE name IN ({placeholders})',
-        selected_members
-    ).fetchall()
+    placeholders = ','.join(['?'] * len(selected_members))
+    query = 'SELECT name FROM family_members WHERE name IN (' + placeholders + ')'
+    valid = conn.execute(query, selected_members).fetchall()
     valid_names = [r['name'] for r in valid]
     if not valid_names:
         session.pop('selected_members', None)
