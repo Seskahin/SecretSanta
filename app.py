@@ -17,9 +17,9 @@ import os
 from datetime import date, datetime
 
 app = Flask(__name__)
-# NOTE: In production, use a secure random key from environment variable:
-# app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24))
-app.secret_key = 'your-secret-key-change-this-in-production'
+# WARNING: Without SECRET_KEY set, a new random key is generated on every restart,
+# invalidating all user sessions. Set SECRET_KEY in your environment or .env file.
+app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24))
 
 SUPPORTED_LANGUAGES = {'en': 'English', 'de': 'Deutsch', 'ru': 'Русский'}
 
@@ -310,13 +310,11 @@ def inject_translations():
 # Database configuration
 DATABASE = 'wishlist.db'
 
-# Admin credentials (in production, use environment variables and hashed passwords)
-# NOTE: For production use:
-# - Store credentials in environment variables
-# - Use password hashing (bcrypt, werkzeug.security, etc.)
-# - Use a strong password
-ADMIN_USERNAME = 'admin'
-ADMIN_PASSWORD = 'admin123'
+# Admin credentials — configure via environment variables for production use.
+# Set ADMIN_USERNAME and ADMIN_PASSWORD as environment variables.
+# Defaults below are for local development only.
+ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME', 'admin')
+ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin123')
 
 
 def get_db_connection():
