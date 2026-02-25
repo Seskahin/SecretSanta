@@ -37,6 +37,8 @@ TRANSLATIONS = {
         'who_are_you': 'Who Are You?',
         'select_name': 'Select your name(s) to see your personal wishlist.',
         'select_members': '🎁 Select your family member name(s):',
+        'team_restriction_hint': 'Tip: Once you select a member from a team, only other members of the same team can be added.',
+        'different_team_error': 'You can only select members from the same team.',
         'view_wishlist': '🎅 View My Wishlist',
         'no_members': 'No family members in the pool yet. Please ask the admin to add family members first! 👨‍👩‍👧‍👦',
         'please_select': 'Please select at least one family member.',
@@ -123,6 +125,8 @@ TRANSLATIONS = {
         'who_are_you': 'Wer bist du?',
         'select_name': 'Wähle deinen Namen, um deine persönliche Wunschliste zu sehen.',
         'select_members': '🎁 Wähle deinen Familiennamen:',
+        'team_restriction_hint': 'Tipp: Sobald du ein Mitglied eines Teams auswählst, können nur weitere Mitglieder desselben Teams hinzugefügt werden.',
+        'different_team_error': 'Du kannst nur Mitglieder desselben Teams auswählen.',
         'view_wishlist': '🎅 Meine Wunschliste anzeigen',
         'no_members': 'Noch keine Familienmitglieder. Bitte den Admin, Familienmitglieder hinzuzufügen! 👨‍👩‍👧‍👦',
         'please_select': 'Bitte wähle mindestens ein Familienmitglied aus.',
@@ -209,6 +213,8 @@ TRANSLATIONS = {
         'who_are_you': 'Кто ты?',
         'select_name': 'Выбери своё имя, чтобы увидеть свой список пожеланий.',
         'select_members': '🎁 Выбери своё имя:',
+        'team_restriction_hint': 'Подсказка: Выбрав участника из команды, ты сможешь добавить только других участников той же команды.',
+        'different_team_error': 'Можно выбирать только участников одной команды.',
         'view_wishlist': '🎅 Посмотреть мой список',
         'no_members': 'Участников ещё нет. Попроси администратора добавить участников! 👨‍👩‍👧‍👦',
         'please_select': 'Пожалуйста, выбери хотя бы одного участника.',
@@ -519,16 +525,29 @@ def who_are_you():
     """
     Page where user selects which family member(s) they are.
     Stores selection in session and redirects to personalized wishlist.
+    Only members from the same team may be selected together.
     """
     conn = get_db_connection()
     family_members = conn.execute(
-        'SELECT name FROM family_members ORDER BY name ASC'
+        "SELECT name, COALESCE(team_name, '') AS team_name FROM family_members ORDER BY team_name, name ASC"
     ).fetchall()
     conn.close()
 
     if request.method == 'POST':
         selected = request.form.getlist('selected_members')
         if selected:
+            # Validate that all selected members belong to the same team
+            conn = get_db_connection()
+            placeholders = ','.join(['?'] * len(selected))
+            members_data = conn.execute(
+                'SELECT team_name FROM family_members WHERE name IN (' + placeholders + ')',
+                selected
+            ).fetchall()
+            conn.close()
+            teams = set(m['team_name'] for m in members_data)
+            if len(teams) > 1:
+                return render_template('who_are_you.html', family_members=family_members,
+                                       error=TRANSLATIONS[get_language()]['different_team_error'])
             session['selected_members'] = selected
             return redirect(url_for('my_wishlist'))
         return render_template('who_are_you.html', family_members=family_members,
