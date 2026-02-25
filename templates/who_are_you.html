@@ -20,9 +20,6 @@
         <p style="font-weight: bold; margin-top: 10px; color: #2d6a2d;">{{ t.select_members }}</p>
         <p style="font-size: 0.9em; color: #666; margin-bottom: 12px;">{{ t.team_restriction_hint }}</p>
         {% for team_name, members in family_members | groupby('team_name') %}
-        {% if team_name %}
-        <p style="font-weight: bold; color: #c41e3a; margin: 12px 0 4px;">🏷️ {{ team_name }}</p>
-        {% endif %}
         {% for member in members %}
         <div class="member-option">
             <label style="font-weight: normal; display: flex; align-items: center; gap: 10px; cursor: pointer;">
