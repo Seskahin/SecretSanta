@@ -18,14 +18,21 @@
     {% if family_members %}
     <form method="POST" action="{{ url_for('who_are_you') }}" style="max-width: 420px; margin: 0 auto;">
         <p style="font-weight: bold; margin-top: 10px; color: #2d6a2d;">{{ t.select_members }}</p>
-        {% for member in family_members %}
+        <p style="font-size: 0.9em; color: #666; margin-bottom: 12px;">{{ t.team_restriction_hint }}</p>
+        {% for team_name, members in family_members | groupby('team_name') %}
+        {% if team_name %}
+        <p style="font-weight: bold; color: #c41e3a; margin: 12px 0 4px;">🏷️ {{ team_name }}</p>
+        {% endif %}
+        {% for member in members %}
         <div class="member-option">
             <label style="font-weight: normal; display: flex; align-items: center; gap: 10px; cursor: pointer;">
                 <input type="checkbox" name="selected_members" value="{{ member.name }}"
+                    data-team="{{ member.team_name or '' }}"
                     {% if session.get('selected_members') and member.name in session.get('selected_members') %}checked{% endif %}>
                 {{ member.name }}
             </label>
         </div>
+        {% endfor %}
         {% endfor %}
         <button type="submit" class="btn-primary" style="margin-top: 20px; width: 100%; padding: 12px; font-size: 1.05em;">{{ t.view_wishlist }}</button>
     </form>
@@ -34,4 +41,38 @@
         {{ t.no_members }}
     </p>
     {% endif %}
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var checkboxes = document.querySelectorAll('input[name="selected_members"]');
+
+        function updateTeamFilter() {
+            var selectedTeam = null;
+            var anyChecked = false;
+
+            checkboxes.forEach(function(cb) {
+                if (cb.checked && !anyChecked) {
+                    selectedTeam = cb.dataset.team;
+                    anyChecked = true;
+                }
+            });
+
+            checkboxes.forEach(function(cb) {
+                if (!anyChecked || cb.dataset.team === selectedTeam) {
+                    cb.disabled = false;
+                    cb.closest('.member-option').style.opacity = '1';
+                } else if (!cb.checked) {
+                    cb.disabled = true;
+                    cb.closest('.member-option').style.opacity = '0.4';
+                }
+            });
+        }
+
+        checkboxes.forEach(function(cb) {
+            cb.addEventListener('change', updateTeamFilter);
+        });
+
+        updateTeamFilter();
+    });
+    </script>
 {% endblock %}
