@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 
-{% block title %}Admin Login{% endblock %}
+{% block title %}Admin-Anmeldung{% endblock %}
 
 {% block content %}
-    <h2 style="text-align: center;">Admin Login</h2>
+    <h2 style="text-align: center;">Admin-Anmeldung</h2>
     
     {% if error %}
     <div style="background-color: #f8d7da; color: #721c24; padding: 10px; border-radius: 5px; margin-bottom: 15px; text-align: center;">
@@ -12,16 +12,16 @@
     {% endif %}
     
     <form method="POST" action="{{ url_for('admin_login') }}" style="max-width: 400px; margin: 0 auto;">
-        <label for="username">Username:</label>
+        <label for="username">Benutzername:</label>
         <input type="text" id="username" name="username" required>
         
-        <label for="password">Password:</label>
+        <label for="password">Passwort:</label>
         <input type="password" id="password" name="password" required>
         
-        <button type="submit" class="btn-primary">Login</button>
+        <button type="submit" class="btn-primary">Anmelden</button>
     </form>
     
     <div style="text-align: center; margin-top: 20px;">
-        <a href="{{ url_for('index') }}">← Back to Home</a>
+        <a href="{{ url_for('index') }}">← Zurück zur Startseite</a>
     </div>
 {% endblock %}

@@ -8,20 +8,35 @@ This application allows family members to:
 - Admin can manage family members pool and run Secret Santa assignments
 """
 
-from flask import Flask, render_template, request, redirect, url_for, session, flash, make_response
+from flask import Flask, render_template, request, redirect, url_for, session, flash, make_response, jsonify
 from functools import wraps
 from markupsafe import Markup, escape
 import random
+import json
 import sqlite3
 import os
-from datetime import date, datetime
+import time
+from datetime import date, datetime, timedelta, timezone
+from dotenv import load_dotenv
+from zoneinfo import ZoneInfo
+
+load_dotenv()
 
 app = Flask(__name__)
 # WARNING: Without SECRET_KEY set, a new random key is generated on every restart,
 # invalidating all user sessions. Set SECRET_KEY in your environment or .env file.
 app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24))
 
-SUPPORTED_LANGUAGES = {'en': 'English', 'de': 'Deutsch', 'ru': 'Русский'}
+app.config.update(
+    SESSION_COOKIE_SECURE=False,
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    PERMANENT_SESSION_LIFETIME=timedelta(days=3650),
+)
+
+LOCAL_TIMEZONE = ZoneInfo('Europe/Berlin')
+
+SUPPORTED_LANGUAGES = {'de': 'Deutsch'}
 
 TRANSLATIONS = {
     'en': {
@@ -157,6 +172,34 @@ TRANSLATIONS = {
         'days_left': 'Tage bis zum Einsendeschluss',
         'deadline_passed': 'Einsendeschluss ist vorbei',
         'no_deadline': 'Kein Einsendeschluss gesetzt',
+        'assignment_date_section': '🎁 Termin der Wichtel-Zuteilung',
+        'assignment_date_desc': 'Dieses Datum dient nur als Hinweis. Die Zuteilung wird weiterhin manuell durch den Admin gestartet.',
+        'assignment_date_label': 'Datum der Zuteilung:',
+        'save_assignment_date': 'Termin speichern',
+        'current_assignment_date': 'Aktueller Zuteilungstermin:',
+        'no_assignment_date': 'Kein Zuteilungstermin festgelegt.',
+        'assignment_days_left': 'Tage bis zur Wichtel-Zuteilung',
+        'assignment_today': 'Die Wichtel-Zuteilung ist für heute vorgemerkt.',
+        'assignment_date_passed': 'Der geplante Zuteilungstermin ist vorbei.',
+        'identity_hint_title': 'Hinweis zur Auswahl',
+        'identity_hint_text': 'Wähle dich einmal aus und markiere alle Personen in deinem Haushalt, für die du ebenfalls Geschenke besorgen möchtest.',
+        'identity_hint_close': 'Verstanden',
+        'gift_limit_reached': 'Für {person_name} wurden bereits maximal {limit} Wünsche eingetragen. Der weitere Wunsch wurde nicht hinzugefügt.',
+        'gift_limit_hint': '{person_name} hat bereits {count} von {limit} möglichen Wünschen.',
+        'preview_title': 'Wunschvorschau von einem artigen Kind',
+        'preview_title_limit': 'Wunschvorschau von einem Kind',
+        'assignment_notification': 'Die Wichtel-Zuteilung wurde durchgeführt. Du kannst jetzt nachsehen, für wen du ein Geschenk besorgst.',
+        'preview_empty': 'Noch keine Vorschau verfügbar.',
+        'gift_limit_section': '🎁 Wunschlimit',
+        'gift_limit_desc': 'Maximale Anzahl von Wünschen pro Person.',
+        'gift_limit_label': 'Maximale Wünsche:',
+        'save_gift_limit': 'Limit speichern',
+        'current_gift_limit': 'Aktuelles Limit:',
+        'preview_interval_section': '🔄 Wunschvorschau',
+        'preview_interval_desc': 'Die rechte Wunschvorschau zeigt zufällig eine teilnehmende Person.',
+        'preview_interval_label': 'Wechselintervall in Sekunden:',
+        'save_preview_interval': 'Intervall speichern',
+        'current_preview_interval': 'Aktuelles Intervall:',
         'comments': '💬 Kommentare',
         'add_comment': 'Kommentar hinzufügen',
         'comment_text': 'Kommentar:',
@@ -177,6 +220,9 @@ TRANSLATIONS = {
         'no_team': 'Leer lassen, wenn kein Team',
         'add_member_btn': 'Mitglied hinzufügen',
         'family_pool': 'Familienmitglieder Pool',
+        'participation': 'Wichtelteilnahme',
+        'participation_hint': 'Soll diese Person am Wichteln teilnehmen?',
+        'save_participation': 'Teilnahme speichern',
         'no_members_yet': 'Noch keine Familienmitglieder. Füge das erste oben hinzu! 👨‍👩‍👧‍👦',
         'name_col': 'Name',
         'team_col': 'Team',
@@ -195,98 +241,10 @@ TRANSLATIONS = {
         'view_product': 'Produkt ansehen',
         'no_wishes_admin': 'Noch keine Wünsche eingetragen.',
         'reset_section': '🔄 Zurücksetzen',
-        'reset_btn': 'Alle Wünsche, Zuteilungen & Kommentare zurücksetzen',
-        'reset_confirm': 'Hiermit werden ALLE Wünsche, ALLE Wichtel-Zuteilungen und ALLE Kommentare gelöscht. Bist du sicher?',
-        'reset_desc': 'Dies löscht alle Wünsche, setzt die Wichtel-Zuteilungen zurück und löscht alle Kommentare.',
+        'reset_btn': 'Zurücksetzen',
+        'reset_confirm': 'Bist du sicher?',
+        'reset_desc': 'Setze Wünsche, die Wichtel-Zuteilung und Kommentare unabhängig voneinander zurück.',
         'delete_member_confirm': 'Bist du sicher? Dadurch werden auch alle Wünsche für',
-    },
-    'ru': {
-        'title': 'Семейный список пожеланий',
-        'header': '🎄 Семейный список пожеланий 🎅',
-        'admin': '⚙️ Админ',
-        'logout': 'Выйти',
-        'back_to_wishlist': '← Назад к списку',
-        'change_language': '🌐 Язык',
-        'language_popup_title': 'Выбери язык',
-        'language_popup_desc': 'Пожалуйста, выбери предпочтительный язык:',
-        'confirm_language': 'Подтвердить',
-        'who_are_you': 'Кто ты?',
-        'select_name': 'Выбери своё имя, чтобы увидеть свой список пожеланий.',
-        'select_members': '🎁 Выбери своё имя:',
-        'team_restriction_hint': 'Подсказка: Выбрав участника из команды, ты сможешь добавить только других участников той же команды.',
-        'different_team_error': 'Можно выбирать только участников одной команды.',
-        'view_wishlist': '🎅 Посмотреть мой список',
-        'no_members': 'Участников ещё нет. Попроси администратора добавить участников! 👨‍👩‍👧‍👦',
-        'please_select': 'Пожалуйста, выбери хотя бы одного участника.',
-        'my_wishlist': '🎁 Мой список пожеланий',
-        'viewing_as': 'Просмотр как:',
-        'secret_santa': 'Тайный Санта:',
-        'buys_for': '→ покупает для',
-        'no_assignments': 'Жеребьёвка ещё не проведена. Попроси администратора запустить жеребьёвку!',
-        'wishes_closed': 'Список пожеланий закрыт.',
-        'deadline_was': 'Крайний срок был',
-        'no_new_wishes': 'Новые пожелания добавлять нельзя — список только для чтения.',
-        'add_wish': 'Добавить пожелание',
-        'add_wish_desc': 'Ты можешь добавить пожелание для себя или от имени другого участника.',
-        'for_label': 'Для:',
-        'select_name_opt': 'Выбери имя',
-        'you_suffix': '(ты)',
-        'wish_required': 'Пожелание (обязательно):',
-        'product_link_label': 'Ссылка на товар (необязательно):',
-        'add_wish_btn': 'Добавить',
-        'your_wishes': 'Твои пожелания',
-        'wishes_label': ' — пожелания',
-        'no_wishes_for': 'Пожеланий ещё нет для',
-        'buying_for': 'Ты покупаешь для',
-        'buying_for_icon': '🛍️',
-        'delete': 'Удалить',
-        'delete_wish_confirm': 'Ты уверен, что хочешь удалить это пожелание?',
-        'progress_label': 'участников уже добавили пожелание',
-        'days_left': 'дней до крайнего срока',
-        'deadline_passed': 'Срок истёк',
-        'no_deadline': 'Срок не установлен',
-        'comments': '💬 Комментарии',
-        'add_comment': 'Добавить комментарий',
-        'comment_text': 'Комментарий:',
-        'your_name_label': 'Твоё имя (необязательно, оставь пустым для анонима):',
-        'post_comment': 'Опубликовать',
-        'anonymous': 'Аноним',
-        'no_comments': 'Комментариев ещё нет. Будь первым!',
-        'admin_title': 'Админ - Управление участниками',
-        'wish_deadline_section': '📅 Крайний срок',
-        'deadline_desc': 'После этой даты список пожеланий становится доступным только для чтения.',
-        'deadline_inclusive': 'Дата крайнего срока (включительно):',
-        'save_deadline': 'Сохранить срок',
-        'current_deadline': 'Текущий срок:',
-        'no_deadline_set': 'Срок не установлен — пожелания можно добавлять в любое время.',
-        'add_member': 'Добавить участника',
-        'member_name': 'Имя участника:',
-        'team_optional': 'Команда (необязательно, напр. "Команда А"):',
-        'no_team': 'Оставь пустым, если нет команды',
-        'add_member_btn': 'Добавить участника',
-        'family_pool': 'Список участников',
-        'no_members_yet': 'Участников ещё нет. Добавь первого выше! 👨‍👩‍👧‍👦',
-        'name_col': 'Имя',
-        'team_col': 'Команда',
-        'actions_col': 'Действия',
-        'update_btn': 'Обновить',
-        'secret_santa_admin': '🎅 Жеребьёвка Тайного Санты',
-        'run_ss': 'Провести жеребьёвку',
-        'run_ss_confirm': 'Это перезапишет текущую жеребьёвку. Продолжить?',
-        'giver': 'Даритель',
-        'receiver': '→ Покупает для',
-        'no_ss': 'Жеребьёвка ещё не проводилась. Нажми "Провести жеребьёвку".',
-        'all_wishes': '📋 Все пожелания',
-        'person_col': 'Участник',
-        'wish_col': 'Пожелание',
-        'product_col': 'Ссылка на товар',
-        'view_product': 'Смотреть товар',
-        'no_wishes_admin': 'Пожеланий ещё нет.',
-        'reset_section': '🔄 Сброс',
-        'reset_btn': 'Сбросить все пожелания, жеребьёвку и комментарии',
-        'reset_confirm': 'Это удалит ВСЕ пожелания, ВСЮ жеребьёвку и ВСЕ комментарии. Ты уверен?',
-        'reset_desc': 'Удаляет все пожелания, сбрасывает жеребьёвку и удаляет все комментарии.',
-        'delete_member_confirm': 'Ты уверен? Это также удалит все пожелания для',
     },
 }
 
@@ -298,19 +256,145 @@ def nl2br_filter(value):
 
 
 def get_language():
-    """Return current language code from cookie, defaulting to 'en'."""
-    lang = request.cookies.get('language', '')
-    return lang if lang in SUPPORTED_LANGUAGES else 'en'
+    """Return the application's fixed language."""
+    return 'de'
+
+
+def format_comment_local_time(timestamp):
+    """Convert a stored UTC comment timestamp to German local time."""
+    try:
+        utc_timestamp = datetime.strptime(
+            timestamp, '%Y-%m-%d %H:%M'
+        ).replace(tzinfo=timezone.utc)
+        return utc_timestamp.astimezone(LOCAL_TIMEZONE).strftime('%d.%m.%Y %H:%M')
+    except (TypeError, ValueError):
+        return timestamp
+
+
+GIFT_IMAGES = (
+    'red_yellow_gift.png',
+    'green_red_gift.png',
+    'blue_yellow.png',
+)
+
+
+def get_gift_positions(wish_count):
+    """Return persistent random decoration data, adding entries only as needed."""
+    stored = get_setting('gift_positions', '[]')
+    try:
+        parsed_positions = json.loads(stored)
+    except (TypeError, ValueError):
+        parsed_positions = []
+    if not isinstance(parsed_positions, list):
+        parsed_positions = []
+
+    positions = [position for position in parsed_positions if isinstance(position, dict)]
+    changed = len(positions) != len(parsed_positions)
+    if len(positions) > wish_count:
+        positions = positions[:wish_count]
+        changed = True
+
+    while len(positions) < wish_count:
+        side = random.choice(('left', 'right'))
+        position = {
+            'side': side,
+            'offset': random.randint(2, 17),
+            'top': random.randint(6, 92),
+            'size': random.randint(35, 150),
+            'rotation': random.randint(-35, 35),
+            'image': random.choice(GIFT_IMAGES),
+        }
+        positions.append(position)
+        changed = True
+
+    if changed:
+        set_setting('gift_positions', json.dumps(positions))
+    return positions
+
+
+@app.before_request
+def make_session_permanent():
+    """Keep the identity selection in a persistent browser cookie."""
+    session.permanent = True
 
 
 @app.context_processor
 def inject_translations():
     """Inject translation dict and language info into every template."""
     lang = get_language()
+    conn = get_db_connection()
+    active_wish_count = conn.execute('SELECT COUNT(*) FROM wishes').fetchone()[0]
+    conn.close()
+    gift_positions = get_gift_positions(active_wish_count)
+    global_popup = None
+    announcement_version = get_setting('assignment_announcement_version')
+    if announcement_version and session.get('assignment_announcement_version') != announcement_version:
+        global_popup = get_setting(
+            'assignment_announcement_message',
+            TRANSLATIONS['de']['assignment_notification']
+        )
+        session['assignment_announcement_version'] = announcement_version
     return {
         't': TRANSLATIONS[lang],
         'lang': lang,
         'supported_languages': SUPPORTED_LANGUAGES,
+        'preview_interval': get_preview_interval(),
+        'active_wish_count': active_wish_count,
+        'gift_positions': gift_positions,
+        'wish_popup': session.pop('wish_popup', None),
+        'global_popup': global_popup,
+        'show_preview': request.endpoint in {'my_wishlist', 'admin_panel'},
+    }
+
+
+def get_gift_limit():
+    """Return the configured maximum number of wishes per person."""
+    try:
+        return max(1, int(get_setting('gift_limit', '5')))
+    except (TypeError, ValueError):
+        return 5
+
+
+def get_preview_interval():
+    """Return the configured sidebar preview interval in seconds."""
+    try:
+        return max(5, int(get_setting('preview_interval', '30')))
+    except (TypeError, ValueError):
+        return 30
+
+
+def get_preview_person(rotate=False):
+    """Return the stored preview person, or choose a new one when rotating."""
+    conn = get_db_connection()
+    people = conn.execute(
+        'SELECT fm.name FROM family_members fm '
+        'JOIN wishes w ON w.person_name = fm.name '
+        'WHERE fm.include_in_assignment = 1 '
+        'GROUP BY fm.name HAVING COUNT(w.id) >= 2'
+    ).fetchall()
+    if not people:
+        session.pop('preview_person_name', None)
+        conn.close()
+        return None
+    available_names = {person['name'] for person in people}
+    person_name = session.get('preview_person_name')
+    if rotate or person_name not in available_names:
+        rotation_candidates = [
+            person['name'] for person in people
+            if person['name'] != person_name
+        ]
+        person_name = random.choice(rotation_candidates or list(available_names))
+        session['preview_person_name'] = person_name
+    wishes = conn.execute(
+        'SELECT wish_text, product_link FROM wishes '
+        'WHERE person_name = ? ORDER BY id DESC',
+        (person_name,)
+    ).fetchall()
+    conn.close()
+    return {
+        'person_name': person_name,
+        'wishes': wishes,
+        'at_limit': len(wishes) >= get_gift_limit(),
     }
 
 # Database configuration
@@ -339,13 +423,14 @@ def init_db():
     Creates the wishes, family_members, and secret_santa tables.
     """
     conn = get_db_connection()
-    
+
     # Create family_members table
     conn.execute('''
         CREATE TABLE IF NOT EXISTS family_members (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL UNIQUE,
-            team_name TEXT
+            team_name TEXT,
+            include_in_assignment INTEGER NOT NULL DEFAULT 1
         )
     ''')
 
@@ -355,7 +440,16 @@ def init_db():
         conn.commit()
     except sqlite3.OperationalError:
         pass  # Column already exists
-    
+
+    try:
+        conn.execute(
+            'ALTER TABLE family_members ADD COLUMN include_in_assignment '
+            'INTEGER NOT NULL DEFAULT 1'
+        )
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass  # Column already exists
+
     # Create wishes table
     conn.execute('''
         CREATE TABLE IF NOT EXISTS wishes (
@@ -470,7 +564,7 @@ def add_wish():
 
     # Block new wishes after the deadline
     if wishes_locked():
-        flash('Wishes are no longer accepted — the deadline has passed.', 'error')
+        session['wish_popup'] = 'Es werden keine Wünsche mehr angenommen – der Einsendeschluss ist vorbei.'
         if source == 'my_wishlist':
             return redirect(url_for('my_wishlist'))
         return redirect(url_for('index'))
@@ -486,16 +580,23 @@ def add_wish():
         ).fetchone()
 
         if member:
-            conn.execute(
-                'INSERT INTO wishes (person_name, wish_text, product_link) VALUES (?, ?, ?)',
-                (person_name, wish_text, product_link)
-            )
-            conn.commit()
+            gift_limit = get_gift_limit()
+            wish_count = conn.execute(
+                'SELECT COUNT(*) FROM wishes WHERE person_name = ?',
+                (person_name,)
+            ).fetchone()[0]
+            if wish_count >= gift_limit:
+                session['wish_popup'] = TRANSLATIONS['de']['gift_limit_reached'].format(
+                    person_name=person_name, limit=gift_limit
+                )
+            else:
+                conn.execute(
+                    'INSERT INTO wishes (person_name, wish_text, product_link) VALUES (?, ?, ?)',
+                    (person_name, wish_text, product_link)
+                )
+                conn.commit()
 
-            # If wishing on behalf of another member, show confirmation only
-            selected_members = session.get('selected_members', [])
-            if person_name not in selected_members:
-                flash(f'🎁 Wish created for {person_name}!', 'success')
+            session['wish_popup'] = f'🎁 Wunsch für {person_name} wurde erstellt!'
 
         conn.close()
 
@@ -514,7 +615,7 @@ def delete_wish(wish_id):
     conn.execute('DELETE FROM wishes WHERE id = ?', (wish_id,))
     conn.commit()
     conn.close()
-    
+
     if source == 'my_wishlist':
         return redirect(url_for('my_wishlist'))
     return redirect(url_for('index'))
@@ -599,7 +700,9 @@ def my_wishlist():
 
     # Get all family members for the add-wish dropdown (own + all for impersonation)
     all_family_members = conn.execute(
-        'SELECT name FROM family_members ORDER BY name ASC'
+        'SELECT fm.name, fm.include_in_assignment, COUNT(w.id) AS wish_count '
+        'FROM family_members fm LEFT JOIN wishes w ON w.person_name = fm.name '
+        'GROUP BY fm.id ORDER BY fm.name ASC'
     ).fetchall()
 
     # Get wishes for all relevant people
@@ -618,9 +721,14 @@ def my_wishlist():
 
     # Gather comments
     conn2 = get_db_connection()
-    comments = conn2.execute(
+    comment_rows = conn2.execute(
         'SELECT * FROM comments ORDER BY id DESC'
     ).fetchall()
+    comments = []
+    for comment in comment_rows:
+        comment_data = dict(comment)
+        comment_data['created_at'] = format_comment_local_time(comment['created_at'])
+        comments.append(comment_data)
     # Progress: count distinct members with at least one wish vs total
     total_members = conn2.execute('SELECT COUNT(*) FROM family_members').fetchone()[0]
     members_with_wishes = conn2.execute(
@@ -635,9 +743,44 @@ def my_wishlist():
                            all_family_members=all_family_members,
                            wishes_locked=locked,
                            wish_deadline=wish_deadline,
+                           assignment_date=get_setting('assignment_date'),
+                           gift_limit=get_gift_limit(),
                            comments=comments,
                            total_members=total_members,
                            members_with_wishes=members_with_wishes)
+
+
+@app.route('/my_wishlist/set_participation', methods=['POST'])
+def set_participation():
+    """Allow a household member to change their own Secret Santa participation."""
+    member_name = request.form.get('member_name', '').strip()
+    selected_members = session.get('selected_members', [])
+    if not member_name or member_name not in selected_members:
+        session['wish_popup'] = 'Die Wichtelteilnahme konnte nicht geändert werden.'
+        return redirect(url_for('my_wishlist'))
+
+    include_in_assignment = 1 if '1' in request.form.getlist('include_in_assignment') else 0
+    conn = get_db_connection()
+    conn.execute(
+        'UPDATE family_members SET include_in_assignment = ? WHERE name = ?',
+        (include_in_assignment, member_name)
+    )
+    conn.execute('DELETE FROM secret_santa')
+    conn.commit()
+    conn.close()
+    set_setting('assignment_announcement_version', str(time.time_ns()))
+    set_setting(
+        'assignment_announcement_message',
+        f'Die Wichtelteilnahme von {member_name} wurde '
+        f'{"aktiviert" if include_in_assignment else "deaktiviert"}. '
+        'Die bisherige Wichtel-Zuteilung wurde zurückgesetzt.'
+    )
+    session['wish_popup'] = (
+        f'Die Wichtelteilnahme für {member_name} wurde '
+        f'{"aktiviert" if include_in_assignment else "deaktiviert"}. '
+        'Die bisherige Zuteilung wurde zurückgesetzt.'
+    )
+    return redirect(url_for('my_wishlist'))
 
 
 
@@ -649,26 +792,39 @@ def admin_login():
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
-        
+
         if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
             session['logged_in'] = True
             return redirect(url_for('admin_panel'))
         else:
-            return render_template('admin_login.html', error='Invalid credentials')
-    
+            return render_template('admin_login.html', error='Ungültige Zugangsdaten')
+
     return render_template('admin_login.html')
 
 
 @app.route('/set_language', methods=['POST'])
 def set_language():
-    """Set the preferred language via cookie and redirect back."""
-    lang = request.form.get('language', 'en')
-    if lang not in SUPPORTED_LANGUAGES:
-        lang = 'en'
+    """Keep the legacy endpoint compatible while German remains fixed."""
     next_url = request.form.get('next') or request.referrer or url_for('index')
     resp = make_response(redirect(next_url))
-    resp.set_cookie('language', lang, max_age=60 * 60 * 24 * 365)
+    resp.set_cookie('language', 'de', max_age=60 * 60 * 24 * 365)
     return resp
+
+
+@app.route('/preview/wish')
+def preview_wish():
+    """Return the current preview, rotating only when explicitly requested."""
+    preview = get_preview_person(rotate=request.args.get('rotate') == '1')
+    if not preview:
+        return jsonify({'wishes': [], 'at_limit': False})
+    return jsonify({
+        'person_name': preview['person_name'],
+        'at_limit': preview['at_limit'],
+        'wishes': [
+            {'wish_text': wish['wish_text'], 'product_link': wish['product_link']}
+            for wish in preview['wishes']
+        ]
+    })
 
 
 @app.route('/comment/add', methods=['POST'])
@@ -680,7 +836,11 @@ def add_comment():
         conn = get_db_connection()
         conn.execute(
             'INSERT INTO comments (author_name, comment_text, created_at) VALUES (?, ?, ?)',
-            (author_name, comment_text, datetime.utcnow().strftime('%Y-%m-%d %H:%M'))
+            (
+                author_name,
+                comment_text,
+                datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')
+            )
         )
         conn.commit()
         conn.close()
@@ -715,10 +875,18 @@ def admin_panel():
     conn.close()
 
     wish_deadline = get_setting('wish_deadline')
+    assignment_date = get_setting('assignment_date')
+    gift_limit = get_gift_limit()
+    preview_interval = get_preview_interval()
+    preview_person = get_preview_person()
 
     return render_template('admin_panel.html', family_members=family_members,
                            secret_santa=secret_santa, all_wishes=all_wishes,
-                           wish_deadline=wish_deadline)
+                           wish_deadline=wish_deadline,
+                           assignment_date=assignment_date,
+                           gift_limit=gift_limit,
+                           preview_interval=preview_interval,
+                           preview_person=preview_person)
 
 
 @app.route('/admin/set_deadline', methods=['POST'])
@@ -730,26 +898,88 @@ def set_deadline():
     deadline = request.form.get('wish_deadline', '').strip()
     if deadline:
         set_setting('wish_deadline', deadline)
-        flash(f'Wish deadline set to {deadline}.', 'success')
+        flash(f'Einsendeschluss auf {deadline} gesetzt.', 'success')
     else:
         set_setting('wish_deadline', '')
-        flash('Wish deadline cleared — wishes can be added at any time.', 'success')
+        flash('Einsendeschluss entfernt – Wünsche können jederzeit hinzugefügt werden.', 'success')
     return redirect(url_for('admin_panel'))
 
 
-@app.route('/admin/reset', methods=['POST'])
+@app.route('/admin/set_assignment_date', methods=['POST'])
 @login_required
-def admin_reset():
-    """
-    Reset all wishes, Secret Santa assignments, and comments.
-    """
+def set_assignment_date():
+    """Save or clear the date shown for the planned Secret Santa assignment."""
+    assignment_date = request.form.get('assignment_date', '').strip()
+    set_setting('assignment_date', assignment_date)
+    if assignment_date:
+        flash(f'Termin der Wichtel-Zuteilung auf {assignment_date} gesetzt.', 'success')
+    else:
+        flash('Termin der Wichtel-Zuteilung entfernt.', 'success')
+    return redirect(url_for('admin_panel'))
+
+
+@app.route('/admin/set_gift_limit', methods=['POST'])
+@login_required
+def set_gift_limit():
+    """Save the maximum number of wishes allowed per person."""
+    try:
+        gift_limit = max(1, int(request.form.get('gift_limit', '5')))
+    except ValueError:
+        flash('Das Wunschlimit muss eine positive Zahl sein.', 'error')
+        return redirect(url_for('admin_panel'))
+    set_setting('gift_limit', str(gift_limit))
+    flash(f'Das Wunschlimit wurde auf {gift_limit} gesetzt.', 'success')
+    return redirect(url_for('admin_panel'))
+
+
+@app.route('/admin/set_preview_interval', methods=['POST'])
+@login_required
+def set_preview_interval():
+    """Save the rotating sidebar preview interval."""
+    try:
+        interval = max(5, int(request.form.get('preview_interval', '30')))
+    except ValueError:
+        flash('Das Wechselintervall muss eine Zahl von mindestens 5 Sekunden sein.', 'error')
+        return redirect(url_for('admin_panel'))
+    set_setting('preview_interval', str(interval))
+    flash(f'Das Wechselintervall wurde auf {interval} Sekunden gesetzt.', 'success')
+    return redirect(url_for('admin_panel'))
+
+
+@app.route('/admin/reset/wishes', methods=['POST'])
+@login_required
+def reset_wishes():
+    """Delete all wishes."""
     conn = get_db_connection()
     conn.execute('DELETE FROM wishes')
+    conn.execute("DELETE FROM settings WHERE key = 'gift_positions'")
+    conn.commit()
+    conn.close()
+    flash('Alle Wünsche wurden zurückgesetzt.', 'success')
+    return redirect(url_for('admin_panel'))
+
+
+@app.route('/admin/reset/assignment', methods=['POST'])
+@login_required
+def reset_assignment():
+    """Delete all Secret Santa assignments."""
+    conn = get_db_connection()
     conn.execute('DELETE FROM secret_santa')
+    conn.commit()
+    conn.close()
+    flash('Die Wichtel-Zuteilung wurde zurückgesetzt.', 'success')
+    return redirect(url_for('admin_panel'))
+
+
+@app.route('/admin/reset/comments', methods=['POST'])
+@login_required
+def reset_comments():
+    """Delete all comments."""
+    conn = get_db_connection()
     conn.execute('DELETE FROM comments')
     conn.commit()
     conn.close()
-    flash('All wishes, Secret Santa assignments, and comments have been reset.', 'success')
+    flash('Alle Kommentare wurden zurückgesetzt.', 'success')
     return redirect(url_for('admin_panel'))
 
 
@@ -763,13 +993,14 @@ def run_secret_santa():
     """
     conn = get_db_connection()
     members = conn.execute(
-        'SELECT name, team_name FROM family_members ORDER BY name ASC'
+        'SELECT name, team_name FROM family_members '
+        'WHERE include_in_assignment = 1 ORDER BY name ASC'
     ).fetchall()
     names = [m['name'] for m in members]
     teams = {m['name']: m['team_name'] for m in members}
 
     if len(names) < 2:
-        flash('Need at least 2 family members for Secret Santa!', 'error')
+        flash('Für das Wichteln werden mindestens zwei Teilnehmer benötigt.', 'error')
         conn.close()
         return redirect(url_for('admin_panel'))
 
@@ -794,8 +1025,9 @@ def run_secret_santa():
 
     if assignment is None:
         flash(
-            'Could not create a valid Secret Santa assignment with the current team '
-            'constraints. Try adding more participants or adjusting team sizes.',
+            'Mit den aktuellen Team-Einschränkungen konnte keine gültige '
+            'Wichtel-Zuteilung erstellt werden. Füge weitere Teilnehmer hinzu oder '
+            'passe die Teamgrößen an.',
             'error'
         )
         conn.close()
@@ -809,8 +1041,13 @@ def run_secret_santa():
             (giver, receiver)
         )
     conn.commit()
+    set_setting('assignment_announcement_version', str(time.time_ns()))
+    set_setting(
+        'assignment_announcement_message',
+        TRANSLATIONS['de']['assignment_notification']
+    )
     conn.close()
-    flash('Secret Santa assignments created successfully!', 'success')
+    flash('Die Wichtel-Zuteilung wurde erfolgreich erstellt.', 'success')
     return redirect(url_for('admin_panel'))
 
 
@@ -822,21 +1059,22 @@ def add_family_member():
     """
     name = request.form.get('name')
     team_name = request.form.get('team_name', '').strip() or None
-    
+
     if name:
         conn = get_db_connection()
         try:
             conn.execute(
-                'INSERT INTO family_members (name, team_name) VALUES (?, ?)',
+                'INSERT INTO family_members '
+                '(name, team_name, include_in_assignment) VALUES (?, ?, 1)',
                 (name, team_name)
             )
             conn.commit()
-            flash(f'Successfully added {name} to the family pool!', 'success')
+            flash(f'{name} wurde zum Familienmitglieder-Pool hinzugefügt.', 'success')
         except sqlite3.IntegrityError:
             # Name already exists
-            flash(f'Error: {name} already exists in the family pool.', 'error')
+            flash(f'Fehler: {name} ist bereits im Familienmitglieder-Pool vorhanden.', 'error')
         conn.close()
-    
+
     return redirect(url_for('admin_panel'))
 
 
@@ -848,21 +1086,21 @@ def delete_family_member(member_id):
     Also deletes all wishes associated with that member.
     """
     conn = get_db_connection()
-    
+
     # Get the member name first
     member = conn.execute(
         'SELECT name FROM family_members WHERE id = ?',
         (member_id,)
     ).fetchone()
-    
+
     if member:
         # Delete all wishes for this member
         conn.execute('DELETE FROM wishes WHERE person_name = ?', (member['name'],))
-        
+
         # Delete the member
         conn.execute('DELETE FROM family_members WHERE id = ?', (member_id,))
         conn.commit()
-    
+
     conn.close()
     return redirect(url_for('admin_panel'))
 
@@ -876,47 +1114,49 @@ def edit_family_member(member_id):
     """
     new_name = request.form.get('name')
     team_name = request.form.get('team_name', '').strip() or None
-    
+    include_in_assignment = 1 if '1' in request.form.getlist('include_in_assignment') else 0
+
     if new_name:
         conn = get_db_connection()
-        
+
         # Get the old name
         member = conn.execute(
             'SELECT name FROM family_members WHERE id = ?',
             (member_id,)
         ).fetchone()
-        
+
         if member:
             old_name = member['name']
-            
+
             try:
                 # Update the member name and team
                 conn.execute(
-                    'UPDATE family_members SET name = ?, team_name = ? WHERE id = ?',
-                    (new_name, team_name, member_id)
+                    'UPDATE family_members SET name = ?, team_name = ?, '
+                    'include_in_assignment = ? WHERE id = ?',
+                    (new_name, team_name, include_in_assignment, member_id)
                 )
-                
+
                 # Update all wishes with the old name
                 conn.execute(
                     'UPDATE wishes SET person_name = ? WHERE person_name = ?',
                     (new_name, old_name)
                 )
-                
+
                 conn.commit()
-                flash(f'Successfully updated {old_name} to {new_name}!', 'success')
+                flash(f'{old_name} wurde zu {new_name} aktualisiert.', 'success')
             except sqlite3.IntegrityError:
                 # Name already exists
-                flash(f'Error: {new_name} already exists in the family pool.', 'error')
-        
+                flash(f'Fehler: {new_name} ist bereits im Familienmitglieder-Pool vorhanden.', 'error')
+
         conn.close()
-    
+
     return redirect(url_for('admin_panel'))
 
 
 if __name__ == '__main__':
     # Initialize database on startup
     init_db()
-    
+
     # Run the Flask app on localhost
     # Note: debug=True is enabled for local development only
     # For production, use a proper WSGI server like gunicorn

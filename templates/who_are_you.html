@@ -9,6 +9,12 @@
     <h2 style="text-align: center; color: #c41e3a;">{{ t.who_are_you }}</h2>
     <p style="text-align: center; color: #555;">{{ t.select_name }}</p>
 
+    <div id="identity-hint" class="identity-hint" role="dialog" aria-labelledby="identity-hint-title">
+        <h3 id="identity-hint-title">{{ t.identity_hint_title }}</h3>
+        <p>{{ t.identity_hint_text }}</p>
+        <button type="button" class="btn-primary" onclick="closeIdentityHint()">{{ t.identity_hint_close }}</button>
+    </div>
+
     {% if error %}
     <div style="background-color: #f8d7da; color: #721c24; padding: 10px; border-radius: 5px; margin-bottom: 15px; text-align: center;">
         {{ error }}
@@ -18,18 +24,20 @@
     {% if family_members %}
     <form method="POST" action="{{ url_for('who_are_you') }}" style="max-width: 420px; margin: 0 auto;">
         <p style="font-weight: bold; margin-top: 10px; color: #2d6a2d;">{{ t.select_members }}</p>
-        {% for team_name, members in family_members | groupby('team_name') %}
-        {% for member in members %}
-        <div class="member-option">
-            <label style="font-weight: normal; display: flex; align-items: center; gap: 10px; cursor: pointer;">
-                <input type="checkbox" name="selected_members" value="{{ member.name }}"
-                    data-team="{{ member.team_name or '' }}"
-                    {% if session.get('selected_members') and member.name in session.get('selected_members') %}checked{% endif %}>
-                {{ member.name }}
-            </label>
+        <div class="member-list">
+            {% for team_name, members in family_members | groupby('team_name') %}
+            {% for member in members %}
+            <div class="member-option">
+                <label style="font-weight: normal; display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                    <input type="checkbox" name="selected_members" value="{{ member.name }}"
+                        data-team="{{ member.team_name or '' }}"
+                        {% if session.get('selected_members') and member.name in session.get('selected_members') %}checked{% endif %}>
+                    {{ member.name }}
+                </label>
+            </div>
+            {% endfor %}
+            {% endfor %}
         </div>
-        {% endfor %}
-        {% endfor %}
         <button type="submit" class="btn-primary" style="margin-top: 20px; width: 100%; padding: 12px; font-size: 1.05em;">{{ t.view_wishlist }}</button>
     </form>
     {% else %}
@@ -39,6 +47,15 @@
     {% endif %}
 
     <script>
+    function closeIdentityHint() {
+        document.getElementById('identity-hint').classList.remove('active');
+        localStorage.setItem('identityHintSeen', '1');
+    }
+
+    if (localStorage.getItem('identityHintSeen') !== '1') {
+        document.getElementById('identity-hint').classList.add('active');
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
         var checkboxes = document.querySelectorAll('input[name="selected_members"]');
 

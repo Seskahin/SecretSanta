@@ -2,31 +2,31 @@
 
 {% block content %}
     <div style="margin-bottom: 20px; text-align: center;">
-        <a href="{{ url_for('who_are_you') }}" style="padding: 8px 16px; background-color: #c41e3a; color: white; border-radius: 4px; text-decoration: none;">🎅 My Wishlist</a>
+        <a href="{{ url_for('who_are_you') }}" style="padding: 8px 16px; background-color: #c41e3a; color: white; border-radius: 4px; text-decoration: none;">🎅 Meine Wunschliste</a>
     </div>
 
     <!-- Form to add a new wish -->
-    <h2>Add a New Wish</h2>
+    <h2>Neuen Wunsch hinzufügen</h2>
     <form method="POST" action="{{ url_for('add_wish') }}">
-        <label for="person_name">Person Name (required):</label>
+        <label for="person_name">Name (erforderlich):</label>
         <select id="person_name" name="person_name" required style="width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ddd; border-radius: 4px;">
-            <option value="">Select a family member</option>
+            <option value="">Familienmitglied auswählen</option>
             {% for person_name in wishes_by_person.keys() %}
                 <option value="{{ person_name }}">{{ person_name }}</option>
             {% endfor %}
         </select>
         
-        <label for="wish_text">Wish Text (required):</label>
-        <textarea id="wish_text" name="wish_text" rows="3" required></textarea>
+        <label for="wish_text">Wunsch (erforderlich):</label>
+        <textarea id="wish_text" name="wish_text" class="wish-input" rows="3" required></textarea>
         
-        <label for="product_link">Product Link (optional):</label>
+        <label for="product_link">Produktlink (optional):</label>
         <input type="text" id="product_link" name="product_link" placeholder="https://...">
         
-        <button type="submit" class="btn-primary">Add Wish</button>
+        <button type="submit" class="btn-primary">Wunsch hinzufügen</button>
     </form>
 
     <!-- Display wishes grouped by person -->
-    <h2>Family Wish Lists</h2>
+    <h2>Wunschlisten der Familie</h2>
     {% if wishes_by_person %}
         {% for person_name, wishes in wishes_by_person.items() %}
         <div style="margin-bottom: 40px;">
@@ -39,26 +39,26 @@
             <table>
                 <thead>
                     <tr>
-                        <th>Wish</th>
-                        <th>Product Link</th>
-                        <th>Actions</th>
+                        <th class="wish-column">Wunsch</th>
+                        <th class="product-column">Produktlink</th>
+                        <th class="actions-column">Aktionen</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for wish in wishes %}
                     <tr>
-                        <td>{{ wish.wish_text | nl2br }}</td>
-                        <td>
+                        <td class="wish-column">{{ wish.wish_text | nl2br }}</td>
+                        <td class="product-column">
                             {% if wish.product_link %}
-                                <a href="{{ wish.product_link }}" target="_blank">View Product</a>
+                                <a href="{{ wish.product_link }}" target="_blank">Produkt ansehen</a>
                             {% else %}
                                 -
                             {% endif %}
                         </td>
-                        <td>
+                        <td class="actions-column">
                             <!-- Delete button -->
                             <form method="POST" action="{{ url_for('delete_wish', wish_id=wish.id) }}" style="display: inline;">
-                                <button type="submit" class="btn-delete" onclick="return confirm('Are you sure you want to delete this wish?');">Delete</button>
+                                <button type="submit" class="btn-delete" onclick="return confirm('Möchtest du diesen Wunsch wirklich löschen?');">Löschen</button>
                             </form>
                         </td>
                     </tr>
@@ -66,13 +66,13 @@
                 </tbody>
             </table>
             {% else %}
-            <p style="color: #666; font-style: italic; margin: 20px 0;">No wishes added yet for {{ person_name }}.</p>
+            <p style="color: #666; font-style: italic; margin: 20px 0;">Noch keine Wünsche für {{ person_name }}.</p>
             {% endif %}
         </div>
         {% endfor %}
     {% else %}
     <p style="text-align: center; color: #666; margin: 40px 0;">
-        No family members in the pool yet. Please ask the admin to add family members first! 👨‍👩‍👧‍👦
+        Noch keine Familienmitglieder vorhanden. Bitte den Admin, zuerst Familienmitglieder hinzuzufügen! 👨‍👩‍👧‍👦
     </p>
     {% endif %}
 {% endblock %}
