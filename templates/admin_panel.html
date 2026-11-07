@@ -25,8 +25,14 @@
     <!-- Reset section -->
     <h3 style="margin-top: 20px; color: #dc3545;">{{ t.reset_section }}</h3>
     <p style="color: #666; font-size: 0.9em;">{{ t.reset_desc }}</p>
-    <form method="POST" action="{{ url_for('admin_reset') }}">
-        <button type="submit" class="btn-danger" onclick="return confirm('{{ t.reset_confirm }}');">{{ t.reset_btn }}</button>
+    <form method="POST" action="{{ url_for('reset_wishes') }}" style="display: inline-block;">
+        <button type="submit" class="btn-danger" onclick="return confirm('Alle Wünsche löschen?');">Wünsche zurücksetzen</button>
+    </form>
+    <form method="POST" action="{{ url_for('reset_assignment') }}" style="display: inline-block;">
+        <button type="submit" class="btn-danger" onclick="return confirm('Die Wichtel-Zuteilung löschen?');">Wichtel-Zuteilung zurücksetzen</button>
+    </form>
+    <form method="POST" action="{{ url_for('reset_comments') }}" style="display: inline-block;">
+        <button type="submit" class="btn-danger" onclick="return confirm('Alle Kommentare löschen?');">Kommentare zurücksetzen</button>
     </form>
     
     <!-- Wish Deadline section -->
@@ -44,6 +50,48 @@
     </p>
     {% else %}
     <p style="color: #666; font-style: italic; margin-top: 5px;">{{ t.no_deadline_set }}</p>
+    {% endif %}
+
+    <!-- Wish limit section -->
+    <h3 style="margin-top: 40px;">{{ t.gift_limit_section }}</h3>
+    <p style="color: #666; font-size: 0.9em;">{{ t.gift_limit_desc }}</p>
+    <form method="POST" action="{{ url_for('set_gift_limit') }}">
+        <label for="gift_limit">{{ t.gift_limit_label }}</label>
+        <input type="number" id="gift_limit" name="gift_limit" min="1" value="{{ gift_limit }}"
+               style="width: 100px; padding: 8px; margin-top: 5px; border: 1px solid #ddd; border-radius: 4px;">
+        <button type="submit" class="btn-primary" style="margin-top: 10px;">{{ t.save_gift_limit }}</button>
+    </form>
+    <p style="color: #666; margin-top: 5px;">{{ t.current_gift_limit }} <strong>{{ gift_limit }}</strong></p>
+
+    <!-- Preview interval section -->
+    <h3 style="margin-top: 40px;">{{ t.preview_interval_section }}</h3>
+    <p style="color: #666; font-size: 0.9em;">{{ t.preview_interval_desc }}</p>
+    <form method="POST" action="{{ url_for('set_preview_interval') }}">
+        <label for="preview_interval">{{ t.preview_interval_label }}</label>
+        <input type="number" id="preview_interval" name="preview_interval" min="5" value="{{ preview_interval }}"
+               style="width: 100px; padding: 8px; margin-top: 5px; border: 1px solid #ddd; border-radius: 4px;">
+        <button type="submit" class="btn-primary" style="margin-top: 10px;">{{ t.save_preview_interval }}</button>
+    </form>
+    <p style="color: #666; margin-top: 5px;">{{ t.current_preview_interval }} <strong>{{ preview_interval }} Sekunden</strong></p>
+    <p style="color: #666;">Aktuelle Vorschau-Person:
+        <strong id="admin-preview-person">{{ preview_person.person_name if preview_person else 'Keine' }}</strong>
+    </p>
+
+    <!-- Assignment date section -->
+    <h3 style="margin-top: 40px;">{{ t.assignment_date_section }}</h3>
+    <p style="color: #666; font-size: 0.9em;">{{ t.assignment_date_desc }}</p>
+    <form method="POST" action="{{ url_for('set_assignment_date') }}">
+        <label for="assignment_date">{{ t.assignment_date_label }}</label>
+        <input type="date" id="assignment_date" name="assignment_date" value="{{ assignment_date or '' }}"
+               style="width: auto; padding: 8px; margin-top: 5px; border: 1px solid #ddd; border-radius: 4px;">
+        <button type="submit" class="btn-primary" style="margin-top: 10px;">{{ t.save_assignment_date }}</button>
+    </form>
+    {% if assignment_date %}
+    <p style="color: #666; margin-top: 5px;">
+        {{ t.current_assignment_date }} <strong>{{ assignment_date }}</strong>
+    </p>
+    {% else %}
+    <p style="color: #666; font-style: italic; margin-top: 5px;">{{ t.no_assignment_date }}</p>
     {% endif %}
 
     <!-- Form to add a new family member -->
@@ -66,6 +114,7 @@
             <tr>
                 <th>{{ t.name_col }}</th>
                 <th>{{ t.team_col }}</th>
+                <th>{{ t.participation }}</th>
                 <th>{{ t.actions_col }}</th>
             </tr>
         </thead>
@@ -79,6 +128,11 @@
                 </td>
                 <td>
                     <input form="edit-member-{{ member.id }}" type="text" name="team_name" value="{{ member.team_name or '' }}" placeholder="{{ t.no_team }}" style="width: 150px;">
+                </td>
+                <td style="text-align: center;">
+                    <input form="edit-member-{{ member.id }}" type="hidden" name="include_in_assignment" value="0">
+                    <input form="edit-member-{{ member.id }}" type="checkbox" name="include_in_assignment" value="1"
+                           {% if member.include_in_assignment %}checked{% endif %}>
                 </td>
                 <td>
                     <button form="edit-member-{{ member.id }}" type="submit" class="btn-primary" style="font-size: 12px; padding: 5px 10px;">{{ t.update_btn }}</button>
@@ -129,24 +183,24 @@
         <thead>
             <tr>
                 <th>{{ t.person_col }}</th>
-                <th>{{ t.wish_col }}</th>
-                <th>{{ t.product_col }}</th>
-                <th>{{ t.actions_col }}</th>
+                <th class="wish-column">{{ t.wish_col }}</th>
+                <th class="product-column">{{ t.product_col }}</th>
+                <th class="actions-column">{{ t.actions_col }}</th>
             </tr>
         </thead>
         <tbody>
             {% for wish in all_wishes %}
             <tr>
                 <td>{{ wish.person_name }}</td>
-                <td>{{ wish.wish_text | nl2br }}</td>
-                <td>
+                <td class="wish-column">{{ wish.wish_text | nl2br }}</td>
+                <td class="product-column">
                     {% if wish.product_link %}
                         <a href="{{ wish.product_link }}" target="_blank">{{ t.view_product }}</a>
                     {% else %}
                         -
                     {% endif %}
                 </td>
-                <td>
+                <td class="actions-column">
                     <form method="POST" action="{{ url_for('delete_wish', wish_id=wish.id) }}" style="display: inline;">
                         <button type="submit" class="btn-delete" onclick="return confirm('{{ t.delete_wish_confirm }}');">{{ t.delete }}</button>
                     </form>

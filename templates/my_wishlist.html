@@ -57,9 +57,52 @@
         {% endif %}
     </div>
 
+    <!-- Assignment date countdown -->
+    <div style="margin-bottom: 18px;" id="assignment-countdown-wrap">
+        {% if assignment_date %}
+        <div class="countdown-box" id="assignment-countdown-box">🎁 <span id="assignment-countdown-text">…</span></div>
+        <script>
+            (function() {
+                var assignmentDate = new Date('{{ assignment_date }}T00:00:00');
+                var now = new Date();
+                var diff = assignmentDate - now;
+                var box = document.getElementById('assignment-countdown-box');
+                var txt = document.getElementById('assignment-countdown-text');
+                if (diff < 0) {
+                    txt.textContent = '{{ t.assignment_date_passed }}';
+                    box.style.background = '#6c757d';
+                } else if (diff < 1000 * 60 * 60 * 24) {
+                    txt.textContent = '{{ t.assignment_today }}';
+                } else {
+                    var days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+                    txt.textContent = days + ' {{ t.assignment_days_left }}';
+                }
+            })();
+        </script>
+        {% endif %}
+    </div>
+
     <p style="color: #666;">
         {{ t.viewing_as }} <strong>{{ selected_members | join(', ') }}</strong>
     </p>
+
+    <section class="participation-section">
+        <h3>{{ t.participation }}</h3>
+        <p>{{ t.participation_hint }}</p>
+        {% for member in all_family_members %}
+            {% if member.name in selected_members %}
+            <form method="POST" action="{{ url_for('set_participation') }}" class="participation-form">
+                <input type="hidden" name="member_name" value="{{ member.name }}">
+                <label>
+                    <input type="checkbox" name="include_in_assignment" value="1"
+                           {% if member.include_in_assignment %}checked{% endif %}
+                           onchange="this.form.submit()">
+                    {{ member.name }} – {{ t.participation }}
+                </label>
+            </form>
+            {% endif %}
+        {% endfor %}
+    </section>
 
     {% if assigned_to %}
     <p style="color: #666;">
@@ -92,14 +135,16 @@
             <option value="">{{ t.select_name_opt }}</option>
             {% for member in all_family_members %}
                 <option value="{{ member.name }}"
-                    {% if selected_members | length == 1 and member.name == selected_members[0] %}selected{% endif %}>
+                        data-wish-count="{{ member.wish_count }}"
+                        {% if selected_members | length == 1 and member.name == selected_members[0] %}selected{% endif %}>
                     {{ member.name }}{% if member.name in selected_members %} {{ t.you_suffix }}{% endif %}
                 </option>
             {% endfor %}
         </select>
+        <p id="wish-limit-hint" class="wish-limit-hint" hidden></p>
 
         <label for="wish_text">{{ t.wish_required }}</label>
-        <textarea id="wish_text" name="wish_text" rows="3" required></textarea>
+        <textarea id="wish_text" name="wish_text" class="wish-input" rows="3" required></textarea>
 
         <label for="product_link">{{ t.product_link_label }}</label>
         <input type="text" id="product_link" name="product_link" placeholder="https://...">
@@ -107,6 +152,30 @@
         <button type="submit" class="btn-primary">{{ t.add_wish_btn }}</button>
     </form>
     {% endif %}
+
+    <script>
+        (function() {
+            var select = document.getElementById('person_name');
+            var hint = document.getElementById('wish-limit-hint');
+            if (!select || !hint) return;
+            var limit = {{ gift_limit }};
+            function updateWishLimitHint() {
+                var option = select.options[select.selectedIndex];
+                var count = option ? Number(option.dataset.wishCount || 0) : 0;
+                if (option && option.value && count >= limit) {
+                    hint.textContent = '{{ t.gift_limit_hint }}'
+                        .replace('{person_name}', option.value)
+                        .replace('{count}', count)
+                        .replace('{limit}', limit);
+                    hint.hidden = false;
+                } else {
+                    hint.hidden = true;
+                }
+            }
+            select.addEventListener('change', updateWishLimitHint);
+            updateWishLimitHint();
+        })();
+    </script>
 
     <!-- Own wishes -->
     <h3 style="margin-top: 30px; color: #c41e3a; border-bottom: 2px solid #c41e3a; padding-bottom: 8px;">{{ t.your_wishes }}</h3>
@@ -118,16 +187,16 @@
         <table>
             <thead>
                 <tr>
-                    <th>{{ t.wish_col }}</th>
-                    <th>{{ t.product_col }}</th>
-                    {% if not wishes_locked %}<th>{{ t.actions_col }}</th>{% endif %}
+                    <th class="wish-column">{{ t.wish_col }}</th>
+                    <th class="product-column">{{ t.product_col }}</th>
+                    {% if not wishes_locked %}<th class="actions-column">{{ t.actions_col }}</th>{% endif %}
                 </tr>
             </thead>
             <tbody>
                 {% for wish in wishes_by_person[name] %}
                 <tr>
-                    <td>{{ wish.wish_text | nl2br }}</td>
-                    <td>
+                    <td class="wish-column">{{ wish.wish_text | nl2br }}</td>
+                    <td class="product-column">
                         {% if wish.product_link %}
                             <a href="{{ wish.product_link }}" target="_blank">{{ t.view_product }}</a>
                         {% else %}
@@ -135,7 +204,7 @@
                         {% endif %}
                     </td>
                     {% if not wishes_locked %}
-                    <td>
+                    <td class="actions-column">
                         <form method="POST" action="{{ url_for('delete_wish', wish_id=wish.id) }}" style="display: inline;">
                             <input type="hidden" name="source" value="my_wishlist">
                             <button type="submit" class="btn-delete" onclick="return confirm('{{ t.delete_wish_confirm }}');">{{ t.delete }}</button>
@@ -170,20 +239,21 @@
         <table>
             <thead>
                 <tr>
-                    <th>{{ t.wish_col }}</th>
-                    <th>{{ t.product_col }}</th>
+                    <th class="wish-column">{{ t.wish_col }}</th>
+                    <th class="product-column">{{ t.product_col }}</th>
                 </tr>
             </thead>
             <tbody>
                 {% for wish in wishes_by_person[name] %}
                 <tr>
-                    <td>{{ wish.wish_text | nl2br }}</td>
-                    <td>
+                    <td class="wish-column">{{ wish.wish_text | nl2br }}</td>
+                    <td class="product-column">
                         {% if wish.product_link %}
                             <a href="{{ wish.product_link }}" target="_blank">{{ t.view_product }}</a>
                         {% else %}
                             -
                         {% endif %}
+
                     </td>
                 </tr>
                 {% endfor %}

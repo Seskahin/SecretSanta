@@ -10,16 +10,24 @@ A minimal Flask web application for managing a family Christmas wish list with S
 - **Grouped Display**: View wishes organized by family member in separate tables
 - **Delete Wishes**: Remove wishes from the list
 - **Secret Santa Assignments**: Automatically assign Secret Santa givers/receivers
-- **Multi-language Support**: English, German, and Russian interfaces
+- **German Interface**: The application is displayed in German
 - **Wish Deadline**: Set a date after which the wish list becomes read-only
+- **Assignment Date**: Configure a date shown as a Secret Santa countdown; the assignment remains manual
+- **Assignment Participation**: Enable or exclude individual family members from Secret Santa
 - **Comments**: Leave comments on the wish list
+- **Separate Resets**: Reset wishes, the Secret Santa assignment, or comments independently
+- **Persistent Identity**: The selected household members remain stored for ten years
+- **Wish Limit**: Configure the maximum number of wishes per person in the admin panel
+- **Wish Preview**: A rotating preview shows wishes without revealing the person's name
+- **Gift Decorations**: Randomly selected gift images decorate both sides of the page
+- **Persistent Gift Placement**: Existing gifts keep their position, size, rotation, and image across page reloads; only newly added wishes receive new decorations
 - **Automatic SQLite Database**: Database is created automatically on first run
 - **Simple and Clean Interface**: Easy-to-use interface with responsive design
 
 ## Requirements
 
-- Python 3.7+
-- Flask 3.0.0
+- Python 3.9+
+- The exact Python package versions are listed in `requirements.txt`
 
 ## Installation
 
@@ -77,6 +85,22 @@ http://127.0.0.1:5000
 6. **Secret Santa**:
    - Admin can run Secret Santa assignments from the admin panel
    - Each family member sees only their own assignment
+
+## Date and time behavior
+
+The application stores deadlines and the planned Secret Santa assignment as dates
+(`YYYY-MM-DD`), not as times. Countdown timers are calculated in the visitor's
+browser using the browser's local time zone. Therefore, a countdown can differ
+between devices if their time zone or system clock differs.
+
+The server validates whether the wish deadline has passed using the VM's local
+date (`date.today()`). Configure the VM's time zone and system clock correctly
+for the location where the application is operated. For a German household,
+the VM should normally use `Europe/Berlin`, including automatic daylight-saving
+time.
+
+Comments are stored internally with a UTC timestamp and displayed in German
+local time (`Europe/Berlin`), including automatic daylight-saving time.
 
 ## Project Structure
 
