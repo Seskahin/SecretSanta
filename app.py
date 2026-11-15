@@ -200,6 +200,7 @@ TRANSLATIONS = {
         'preview_interval_label': 'Wechselintervall in Sekunden:',
         'save_preview_interval': 'Intervall speichern',
         'current_preview_interval': 'Aktuelles Intervall:',
+        'preview_next_rotation': 'Nächster Wechsel in:',
         'comments': '💬 Kommentare',
         'add_comment': 'Kommentar hinzufügen',
         'comment_text': 'Kommentar:',
@@ -730,9 +731,13 @@ def my_wishlist():
         comment_data['created_at'] = format_comment_local_time(comment['created_at'])
         comments.append(comment_data)
     # Progress: count distinct members with at least one wish vs total
-    total_members = conn2.execute('SELECT COUNT(*) FROM family_members').fetchone()[0]
+    total_members = conn2.execute(
+        'SELECT COUNT(*) FROM family_members WHERE include_in_assignment = 1'
+    ).fetchone()[0]
     members_with_wishes = conn2.execute(
-        'SELECT COUNT(DISTINCT person_name) FROM wishes'
+        'SELECT COUNT(DISTINCT w.person_name) FROM wishes w '
+        'JOIN family_members fm ON fm.name = w.person_name '
+        'WHERE fm.include_in_assignment = 1'
     ).fetchone()[0]
     conn2.close()
 
@@ -814,12 +819,27 @@ def set_language():
 @app.route('/preview/wish')
 def preview_wish():
     """Return the current preview, rotating only when explicitly requested."""
-    preview = get_preview_person(rotate=request.args.get('rotate') == '1')
+    rotate = request.args.get('rotate') == '1'
+    now = time.time()
+    last_rotation = session.get('preview_last_rotation_at')
+    if rotate or not isinstance(last_rotation, (int, float)):
+        last_rotation = now
+        session['preview_last_rotation_at'] = last_rotation
+
+    seconds_until_rotation = max(
+        0, int(get_preview_interval() - (now - last_rotation) + 0.999)
+    )
+    preview = get_preview_person(rotate=rotate)
     if not preview:
-        return jsonify({'wishes': [], 'at_limit': False})
+        return jsonify({
+            'wishes': [],
+            'at_limit': False,
+            'seconds_until_rotation': seconds_until_rotation,
+        })
     return jsonify({
         'person_name': preview['person_name'],
         'at_limit': preview['at_limit'],
+        'seconds_until_rotation': seconds_until_rotation,
         'wishes': [
             {'wish_text': wish['wish_text'], 'product_link': wish['product_link']}
             for wish in preview['wishes']

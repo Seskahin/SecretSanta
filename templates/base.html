@@ -578,6 +578,26 @@
     <script>
         (function() {
             var content = document.getElementById('wish-preview-content');
+            var intervalMs = {{ preview_interval * 1000 }};
+            var nextRotationAt = Date.now() + intervalMs;
+            var countdown = document.getElementById('admin-preview-countdown');
+            var rotationTimer;
+
+            function updateCountdown() {
+                if (!countdown) return;
+                var secondsRemaining = Math.max(
+                    0, Math.ceil((nextRotationAt - Date.now()) / 1000)
+                );
+                countdown.textContent = secondsRemaining + ' Sekunden';
+            }
+
+            function scheduleRotation(delayMs) {
+                window.clearTimeout(rotationTimer);
+                rotationTimer = window.setTimeout(function() {
+                    loadPreview(true);
+                }, Math.max(0, delayMs));
+            }
+
             function loadPreview(rotate) {
                 var separator = rotate ? '?' : '?';
                 var endpoint = '{{ url_for("preview_wish") }}' + separator +
@@ -585,6 +605,9 @@
                 fetch(endpoint, {cache: 'no-store'})
                     .then(function(response) { return response.json(); })
                     .then(function(data) {
+                        nextRotationAt = Date.now() + (data.seconds_until_rotation * 1000);
+                        updateCountdown();
+                        scheduleRotation(data.seconds_until_rotation * 1000);
                         var adminName = document.getElementById('admin-preview-person');
                         if (adminName) {
                             adminName.textContent = data.person_name || 'Keine';
@@ -600,17 +623,28 @@
                         var list = document.createElement('ul');
                         data.wishes.forEach(function(wish) {
                             var item = document.createElement('li');
-                            item.textContent = wish.wish_text;
+                            if (wish.product_link) {
+                                var link = document.createElement('a');
+                                link.href = wish.product_link;
+                                link.target = '_blank';
+                                link.rel = 'noopener noreferrer';
+                                link.textContent = wish.wish_text;
+                                item.appendChild(link);
+                            } else {
+                                item.textContent = wish.wish_text;
+                            }
                             list.appendChild(item);
                         });
                         content.replaceChildren(list);
                     })
                     .catch(function() {
                         content.textContent = '{{ t.preview_empty }}';
+                        scheduleRotation(intervalMs);
                     });
             }
             loadPreview(false);
-            window.setInterval(function() { loadPreview(true); }, {{ preview_interval * 1000 }});
+            window.setInterval(updateCountdown, 1000);
+            updateCountdown();
         })();
     </script>
     {% endif %}
