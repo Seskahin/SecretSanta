@@ -76,6 +76,10 @@
     <p style="color: #666;">Aktuelle Vorschau-Person:
         <strong id="admin-preview-person">{{ preview_person.person_name if preview_person else 'Keine' }}</strong>
     </p>
+    <p style="color: #666;">
+        {{ t.preview_next_rotation }}
+        <strong id="admin-preview-countdown">{{ preview_interval }} Sekunden</strong>
+    </p>
 
     <!-- Assignment date section -->
     <h3 style="margin-top: 40px;">{{ t.assignment_date_section }}</h3>
